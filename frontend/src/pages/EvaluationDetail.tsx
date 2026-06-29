@@ -100,13 +100,17 @@ function DistributionSection({
       {!oos && (
         <p className="text-sm text-amber-300/80">
           These numbers are <strong>in-sample only</strong> — a map of the grid,
-          not evidence the strategy works. Run a walk-forward for an out-of-sample,
-          baseline-compared result.
+          not evidence the strategy would hold up on future or out-of-sample data.
+          Run a walk-forward for an out-of-sample, baseline-compared result.
         </p>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <StatCard label="Best" value={fmtObjective(objective, summary.best)} />
+        <StatCard
+          label="Best"
+          value={fmtObjective(objective, summary.best)}
+          note={oos ? undefined : 'In-sample only — the most data-mined cell, not a result.'}
+        />
         <StatCard label="Median" value={fmtObjective(objective, summary.median)} />
         <StatCard label="Worst" value={fmtObjective(objective, summary.worst)} />
       </div>
@@ -247,7 +251,11 @@ function Results({ data }: { data: EvaluationDetailType }) {
         role="note"
         className="bg-amber-950/40 border border-amber-900/50 rounded p-4"
       >
-        <p className="text-sm text-amber-300/90">{results.caveat}</p>
+        <p className="text-sm text-amber-300/90">
+          {results.caveat && results.caveat.length > 0
+            ? results.caveat
+            : MULTIPLE_TESTING_NOTE}
+        </p>
       </div>
 
       <DistributionSection summary={summary} nCombinations={results.n_combinations} />

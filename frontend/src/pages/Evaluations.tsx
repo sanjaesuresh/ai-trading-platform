@@ -36,8 +36,8 @@ export default function Evaluations() {
       <div>
         <h1 className="text-xl font-semibold text-zinc-50">Evaluations</h1>
         <p className="text-sm text-zinc-500 mt-1">
-          Parameter sweeps and out-of-sample walk-forward runs. Simulated only —
-          not financial advice.
+          Parameter sweeps (in-sample only) and walk-forward runs (out-of-sample,
+          baseline-compared). Simulated only — not financial advice.
         </p>
       </div>
 
