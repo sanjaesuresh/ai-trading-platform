@@ -57,6 +57,29 @@ The sample CSV (`data/sample/sample_ohlcv.csv`) is **synthetic** and labeled as
 such; the loader accepts any real OHLCV CSV with `timestamp,open,high,low,close,volume`
 columns placed under the `data/` directory.
 
+## Parameter sweeps and walk-forward evaluation (Phase 2 M5)
+
+`POST /evaluations/sweep` runs a strategy across a parameter grid; `POST
+/evaluations/walk-forward` runs an out-of-sample, anchored or rolling
+walk-forward. Both persist one aggregate row; read it back with `GET
+/evaluations` and `GET /evaluations/{id}`.
+
+```bash
+curl -X POST localhost:8000/evaluations/sweep \
+  -H 'content-type: application/json' \
+  -d '{"symbol":"SYNTH","csv_path":"data/sample/sample_ohlcv.csv","strategy_name":"trend_following","param_grid":{"rsi_buy_low":[40,45],"rsi_buy_high":[70,75]},"objective":"sharpe_ratio"}'
+```
+
+Results are reported as a **full out-of-sample distribution net of fees**
+(best / median / worst), in-sample vs out-of-sample side by side, the fraction of
+combinations that beat the rule-based baseline, and an overfit flag — never a
+single "best cell." Parameters are chosen on in-sample data only; the test window
+is always strictly later in time. **A parameter sweep can fool itself**: many
+combinations tested means some look good by luck, so treat the out-of-sample,
+cost-aware view as the only evidence, and read the overfit flag and the
+multiple-testing caveat as part of the result. Still simulated only — not
+financial advice, and nothing here implies real or guaranteed returns.
+
 ## Backend tests (no database needed)
 
 The five core test modules are pure logic:
