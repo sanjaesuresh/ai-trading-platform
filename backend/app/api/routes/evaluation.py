@@ -1,4 +1,10 @@
-"""Evaluation endpoints: run a sweep or walk-forward, list, detail.
+"""Evaluation endpoints: enqueue a sweep or walk-forward, list, detail.
+
+By default a sweep / walk-forward is enqueued onto the background queue (202,
+``queued``) and polled via ``GET /evaluations/{id}`` — the heavy work runs on the
+worker, not in the request. The ``/sync`` sub-paths keep M5's inline behavior
+(201, ``completed``) for small grids and tests. Validation runs at enqueue time,
+so an oversized/invalid grid is still a clean 400 before anything is queued.
 
 Results are reported as a full out-of-sample distribution net of fees, never as a
 single best cell — the honest-framing requirement lives in the service; this
@@ -13,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.jobs.queue import enqueue
 from app.models_db.evaluation_run import EvaluationRun
 from app.schemas.evaluation import (
     EvaluationDetail,
@@ -22,6 +29,8 @@ from app.schemas.evaluation import (
 )
 from app.services.backtest_service import BacktestRequestError
 from app.services.evaluation_service import (
+    create_queued_sweep_run,
+    create_queued_walk_forward_run,
     run_sweep_pipeline,
     run_walk_forward_pipeline,
 )
@@ -36,11 +45,44 @@ def _bad_request(exc: BacktestRequestError) -> HTTPException:
     )
 
 
-@router.post("/sweep", response_model=EvaluationSummary, status_code=status.HTTP_201_CREATED)
-def run_sweep_endpoint(
+@router.post("/sweep", response_model=EvaluationSummary, status_code=status.HTTP_202_ACCEPTED)
+async def enqueue_sweep(
     req: SweepRequest, db: Session = Depends(get_db)
 ) -> EvaluationSummary:
-    """Run a parameter sweep and persist the aggregate. Results are simulated."""
+    """Queue a parameter sweep; poll GET /evaluations/{id}. Results are simulated."""
+    try:
+        run = create_queued_sweep_run(req, db)
+    except BacktestRequestError as exc:
+        raise _bad_request(exc) from exc
+    # Row exists in `queued` before the job is enqueued, so it is always pollable.
+    await enqueue("evaluation_task", evaluation_run_id=run.id)
+    return EvaluationSummary.model_validate(run)
+
+
+@router.post(
+    "/walk-forward",
+    response_model=EvaluationSummary,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def enqueue_walk_forward(
+    req: WalkForwardRequest, db: Session = Depends(get_db)
+) -> EvaluationSummary:
+    """Queue an out-of-sample walk-forward evaluation; poll GET /evaluations/{id}."""
+    try:
+        run = create_queued_walk_forward_run(req, db)
+    except BacktestRequestError as exc:
+        raise _bad_request(exc) from exc
+    await enqueue("evaluation_task", evaluation_run_id=run.id)
+    return EvaluationSummary.model_validate(run)
+
+
+@router.post(
+    "/sweep/sync", response_model=EvaluationSummary, status_code=status.HTTP_201_CREATED
+)
+def run_sweep_sync(
+    req: SweepRequest, db: Session = Depends(get_db)
+) -> EvaluationSummary:
+    """Run a sweep inline and persist it (M5 behavior, for small grids)."""
     try:
         run = run_sweep_pipeline(req, db)
     except BacktestRequestError as exc:
@@ -49,12 +91,14 @@ def run_sweep_endpoint(
 
 
 @router.post(
-    "/walk-forward", response_model=EvaluationSummary, status_code=status.HTTP_201_CREATED
+    "/walk-forward/sync",
+    response_model=EvaluationSummary,
+    status_code=status.HTTP_201_CREATED,
 )
-def run_walk_forward_endpoint(
+def run_walk_forward_sync(
     req: WalkForwardRequest, db: Session = Depends(get_db)
 ) -> EvaluationSummary:
-    """Run an out-of-sample walk-forward evaluation and persist it. Simulated."""
+    """Run a walk-forward evaluation inline and persist it (M5 behavior)."""
     try:
         run = run_walk_forward_pipeline(req, db)
     except BacktestRequestError as exc:

@@ -7,17 +7,35 @@ the manual integration step.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from fastapi.testclient import TestClient
 
+from app.api.routes import evaluation
 from app.main import create_app
 
 client = TestClient(create_app())
+
+
+class _FakeRun:
+    """Stand-in for a persisted EvaluationRun (from_attributes validation)."""
+
+    def __init__(self, status: str) -> None:
+        self.id = 99
+        self.kind = "sweep"
+        self.symbol = "OSC"
+        self.strategy_name = "trend_following"
+        self.status = status
+        self.objective = "sharpe_ratio"
+        self.created_at = datetime.now(UTC)
 
 
 def test_routes_are_mounted() -> None:
     paths = client.get("/openapi.json").json()["paths"]
     assert "/evaluations/sweep" in paths
     assert "/evaluations/walk-forward" in paths
+    assert "/evaluations/sweep/sync" in paths
+    assert "/evaluations/walk-forward/sync" in paths
     assert "/evaluations" in paths
     assert "/evaluations/{evaluation_id}" in paths
 
@@ -69,3 +87,42 @@ def test_bad_scheme_is_422() -> None:
         json={"symbol": "OSC", "param_grid": {}, "scheme": "sideways"},
     )
     assert resp.status_code == 422
+
+
+def test_sweep_enqueues_and_returns_queued(monkeypatch) -> None:
+    """The default sweep path persists a queued row and enqueues the task by id."""
+    captured: dict[str, object] = {}
+
+    def fake_create(req, db):  # noqa: ANN001
+        return _FakeRun("queued")
+
+    async def fake_enqueue(task_name: str, **kwargs: object) -> str:
+        captured["task_name"] = task_name
+        captured["kwargs"] = kwargs
+        return "job-xyz"
+
+    monkeypatch.setattr(evaluation, "create_queued_sweep_run", fake_create)
+    monkeypatch.setattr(evaluation, "enqueue", fake_enqueue)
+
+    resp = client.post("/evaluations/sweep", json={"symbol": "OSC", "param_grid": {}})
+
+    assert resp.status_code == 202
+    assert resp.json()["status"] == "queued"
+    assert captured["task_name"] == "evaluation_task"
+    assert captured["kwargs"] == {"evaluation_run_id": 99}
+
+
+def test_sync_path_still_runs_inline(monkeypatch) -> None:
+    """The /sync sub-path keeps M5's inline behavior (201, completed)."""
+
+    def fake_pipeline(req, db):  # noqa: ANN001
+        return _FakeRun("completed")
+
+    monkeypatch.setattr(evaluation, "run_sweep_pipeline", fake_pipeline)
+
+    resp = client.post(
+        "/evaluations/sweep/sync", json={"symbol": "OSC", "param_grid": {}}
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["status"] == "completed"
