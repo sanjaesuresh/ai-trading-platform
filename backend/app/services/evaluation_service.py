@@ -151,8 +151,8 @@ def _split_to_dict(split: SplitResult) -> dict[str, Any]:
     }
 
 
-def build_sweep_run(req: SweepRequest, featured: pd.DataFrame) -> EvaluationRun:
-    """Run the sweep over *featured* and build the (unpersisted) EvaluationRun."""
+def _build_sweep_payload(req: SweepRequest, featured: pd.DataFrame) -> dict[str, Any]:
+    """Run the sweep over *featured* and serialize the JSON results payload."""
     results, summary = run_sweep(
         featured,
         symbol=req.symbol,
@@ -161,28 +161,18 @@ def build_sweep_run(req: SweepRequest, featured: pd.DataFrame) -> EvaluationRun:
         run_kwargs=_run_kwargs(req),
         objective=req.objective,
     )
-    payload = {
+    return {
         "summary": _summary_to_dict(summary),
         "n_combinations": len(results),
         "caveat": _CAVEAT,
         "combinations": [_combination_to_dict(r) for r in results],
     }
-    return EvaluationRun(
-        kind="sweep",
-        symbol=req.symbol,
-        strategy_name=req.strategy_name,
-        status="completed",
-        objective=req.objective,
-        config=req.model_dump(),
-        results=payload,
-        finished_at=datetime.now(UTC),
-    )
 
 
-def build_walk_forward_run(
+def _build_walk_forward_payload(
     req: WalkForwardRequest, featured: pd.DataFrame
-) -> EvaluationRun:
-    """Run walk-forward over *featured* and build the (unpersisted) EvaluationRun."""
+) -> dict[str, Any]:
+    """Run walk-forward over *featured* and serialize the JSON results payload."""
     splits = generate_splits(
         len(featured),
         scheme=req.scheme,
@@ -201,12 +191,32 @@ def build_walk_forward_run(
         baseline_strategy_name=req.baseline_strategy_name,
         baseline_params=req.baseline_params,
     )
-    payload = {
+    return {
         "summary": _summary_to_dict(wf.summary) if wf.summary is not None else {},
         "n_combinations": count_combinations(req.param_grid),
         "caveat": _CAVEAT,
         "splits": [_split_to_dict(s) for s in wf.splits],
     }
+
+
+def build_sweep_run(req: SweepRequest, featured: pd.DataFrame) -> EvaluationRun:
+    """Run the sweep over *featured* and build the (unpersisted) EvaluationRun."""
+    return EvaluationRun(
+        kind="sweep",
+        symbol=req.symbol,
+        strategy_name=req.strategy_name,
+        status="completed",
+        objective=req.objective,
+        config=req.model_dump(),
+        results=_build_sweep_payload(req, featured),
+        finished_at=datetime.now(UTC),
+    )
+
+
+def build_walk_forward_run(
+    req: WalkForwardRequest, featured: pd.DataFrame
+) -> EvaluationRun:
+    """Run walk-forward over *featured* and build the (unpersisted) EvaluationRun."""
     return EvaluationRun(
         kind="walk_forward",
         symbol=req.symbol,
@@ -214,7 +224,7 @@ def build_walk_forward_run(
         status="completed",
         objective=req.objective,
         config=req.model_dump(),
-        results=payload,
+        results=_build_walk_forward_payload(req, featured),
         finished_at=datetime.now(UTC),
     )
 
@@ -223,6 +233,98 @@ def _persist(db: Session, run: EvaluationRun) -> EvaluationRun:
     db.add(run)
     db.commit()
     db.refresh(run)
+    return run
+
+
+# --- async lifecycle (M6): enqueue creates a queued row; the worker runs it ----
+
+
+def _request_from_run(run: EvaluationRun) -> SweepRequest:
+    """Rebuild the typed request from a stored run's ``config`` + ``kind``."""
+    if run.kind == "sweep":
+        return SweepRequest(**run.config)
+    if run.kind == "walk_forward":
+        return WalkForwardRequest(**run.config)
+    raise ValueError(f"Unknown evaluation kind: {run.kind!r}")
+
+
+def create_queued_sweep_run(req: SweepRequest, db: Session) -> EvaluationRun:
+    """Validate, then persist a ``queued`` sweep row for a worker to run later.
+
+    Validation happens here so an oversized/invalid grid is rejected with a clean
+    400 at enqueue time, never queued only to fail later in the worker.
+    """
+    validate_and_expand(req)
+    return _persist(
+        db,
+        EvaluationRun(
+            kind="sweep",
+            symbol=req.symbol,
+            strategy_name=req.strategy_name,
+            status="queued",
+            objective=req.objective,
+            config=req.model_dump(),
+            results={},
+        ),
+    )
+
+
+def create_queued_walk_forward_run(
+    req: WalkForwardRequest, db: Session
+) -> EvaluationRun:
+    """Validate, then persist a ``queued`` walk-forward row for a worker to run."""
+    validate_and_expand(req)
+    return _persist(
+        db,
+        EvaluationRun(
+            kind="walk_forward",
+            symbol=req.symbol,
+            strategy_name=req.strategy_name,
+            status="queued",
+            objective=req.objective,
+            config=req.model_dump(),
+            results={},
+        ),
+    )
+
+
+def mark_running(db: Session, run: EvaluationRun) -> EvaluationRun:
+    """Flip a queued run to ``running`` and commit."""
+    run.status = "running"
+    db.commit()
+    db.refresh(run)
+    return run
+
+
+def mark_failed(db: Session, run: EvaluationRun, error: str) -> EvaluationRun:
+    """Flip a run to ``failed``, record the error and finish time, and commit."""
+    run.status = "failed"
+    run.error = error
+    run.finished_at = datetime.now(UTC)
+    db.commit()
+    db.refresh(run)
+    return run
+
+
+def execute_evaluation_run(db: Session, run: EvaluationRun) -> EvaluationRun:
+    """Run a (running) evaluation row in place and mark it ``completed``.
+
+    Rebuilds the request from the stored ``config``, recomputes from a fresh load
+    (idempotent — a re-run repeats the work and overwrites ``results``), writes the
+    results payload, and commits. The caller owns the ``running``/``failed`` flips.
+    """
+    req = _request_from_run(run)
+    validate_and_expand(req)
+    featured = load_and_feature_frame(req.symbol, req.csv_path, db)
+    if isinstance(req, WalkForwardRequest):
+        run.results = _build_walk_forward_payload(req, featured)
+    else:
+        run.results = _build_sweep_payload(req, featured)
+    run.status = "completed"
+    run.finished_at = datetime.now(UTC)
+    db.commit()
+    db.refresh(run)
+    log.info("Evaluation %s (%s) completed on %s.", run.id, run.kind, run.symbol)
     return run
 
 
