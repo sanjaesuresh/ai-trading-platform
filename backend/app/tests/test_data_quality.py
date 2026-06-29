@@ -58,3 +58,34 @@ def test_high_below_low_fails() -> None:
     report = check_data_quality(frame)
     assert not report.passed
     assert any("high < low" in e for e in report.errors)
+
+
+def test_empty_frame_fails() -> None:
+    frame = _clean_frame().iloc[0:0]
+    report = check_data_quality(frame)
+    assert not report.passed
+    assert any("empty" in e.lower() for e in report.errors)
+
+
+def test_out_of_order_timestamps_fails() -> None:
+    # Reverse the rows (descending timestamps) without introducing duplicates.
+    frame = _clean_frame().iloc[::-1].reset_index(drop=True)
+    report = check_data_quality(frame)
+    assert not report.passed
+    assert any("order" in e.lower() for e in report.errors)
+
+
+def test_close_outside_high_low_fails() -> None:
+    frame = _clean_frame()
+    frame.loc[2, "close"] = frame.loc[2, "high"] + 5.0
+    report = check_data_quality(frame)
+    assert not report.passed
+    assert any("close" in e and "range" in e for e in report.errors)
+
+
+def test_negative_volume_fails() -> None:
+    frame = _clean_frame()
+    frame.loc[2, "volume"] = -1.0
+    report = check_data_quality(frame)
+    assert not report.passed
+    assert any("volume" in e.lower() for e in report.errors)

@@ -54,6 +54,31 @@ def test_win_rate_over_round_trips() -> None:
     assert m.avg_win > 0 and m.avg_loss < 0
 
 
+def test_round_trip_pnl_is_net_of_fees() -> None:
+    # Buy gross 1000 with fee 10, sell gross 1100 with fee 11.
+    # Net PnL = (1100 - 11) - (1000 + 10) = 79 — both fee legs must be applied.
+    trades = [
+        _trade("BUY", 0, 1_000.0, fee=10.0),
+        _trade("SELL", 2, 1_100.0, fee=11.0),
+    ]
+    m = compute_metrics(_curve([100.0, 110.0, 120.0]), trades, initial_capital=100.0)
+    assert m.num_round_trips == 1
+    assert m.win_rate == 1.0
+    assert abs(m.avg_win - 79.0) < 1e-9
+
+
+def test_exposure_pct_reflects_held_bars() -> None:
+    ts = pd.date_range("2023-01-02", periods=4, freq="D")
+    # Two of four bars hold a position -> 50% exposure.
+    position_values = [0.0, 50.0, 50.0, 0.0]
+    curve = [
+        EquityPoint(timestamp=t, equity=100.0, cash=100.0, position_value=pv)
+        for t, pv in zip(ts, position_values, strict=True)
+    ]
+    m = compute_metrics(curve, [], initial_capital=100.0)
+    assert abs(m.exposure_pct - 50.0) < 1e-9
+
+
 def test_zero_volatility_no_error() -> None:
     m = compute_metrics(_curve([100.0] * 20), [], initial_capital=100.0)
     assert m.sharpe_ratio == 0.0

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from app.backtesting.engine import run_backtest
 from app.strategies.base_strategy import (
@@ -47,7 +48,8 @@ def test_equity_curve_and_trades_recorded() -> None:
     result = run_backtest(frame, _ScriptedStrategy(StrategySignal.BUY), "T",
                           initial_capital=10_000, fee_bps=5, slippage_bps=5)
     assert len(result.equity_curve) == len(frame)
-    assert len(result.trades) >= 2  # one buy fill plus the forced sell
+    # Exactly one buy fill plus the forced sell — no extra fills while holding.
+    assert len(result.trades) == 2
 
 
 def test_no_double_buy_while_in_position() -> None:
@@ -64,10 +66,42 @@ def test_fee_and_slippage_applied() -> None:
     result = run_backtest(frame, _ScriptedStrategy(StrategySignal.BUY), "T",
                           initial_capital=10_000, fee_bps=5, slippage_bps=10)
     buy = next(t for t in result.trades if t.side == "BUY")
-    # The buy fills at bar index 1 (open=200), slipped upward.
-    assert buy.price > 200.0
-    assert buy.fee > 0.0
-    assert buy.slippage > 0.0
+    # The buy fills at bar index 1 (open=200), slipped upward by 10 bps.
+    assert buy.price == pytest.approx(200.0 * 1.001)
+    assert buy.fee == pytest.approx(buy.gross_value * 5 / 10_000)
+    assert buy.slippage == pytest.approx(abs(buy.price - 200.0) * buy.quantity)
+
+
+def test_sell_side_fee_and_slippage_applied() -> None:
+    # Force-close on the final bar exercises the SELL path: fills below the raw
+    # price (slipped down) and still pays a fee.
+    frame = _frame([100, 200, 300, 400, 500])
+    result = run_backtest(frame, _ScriptedStrategy(StrategySignal.BUY), "T",
+                          initial_capital=10_000, fee_bps=5, slippage_bps=10)
+    sell = next(t for t in result.trades if t.side == "SELL")
+    final_close = float(frame["close"].iloc[-1])
+    assert sell.price == pytest.approx(final_close * 0.999)
+    assert sell.price < final_close
+    assert sell.fee == pytest.approx(sell.gross_value * 5 / 10_000)
+    assert sell.slippage > 0.0
+
+
+def test_buy_fill_timestamp_is_next_bar() -> None:
+    # A signal from bar 0 must fill at bar 1's open — proves next-bar execution.
+    frame = _frame([100, 102, 104, 106, 108])
+    result = run_backtest(frame, _ScriptedStrategy(StrategySignal.BUY), "T",
+                          initial_capital=10_000, fee_bps=5, slippage_bps=5)
+    buy = next(t for t in result.trades if t.side == "BUY")
+    assert buy.timestamp == frame["timestamp"].iloc[1]
+
+
+def test_single_bar_frame_produces_no_trades() -> None:
+    frame = _frame([100])
+    result = run_backtest(frame, _ScriptedStrategy(StrategySignal.BUY), "T",
+                          initial_capital=10_000, fee_bps=5, slippage_bps=5)
+    assert len(result.equity_curve) == 1
+    assert result.trades == []
+    assert result.final_equity == 10_000.0
 
 
 def test_force_close_on_final_bar() -> None:
