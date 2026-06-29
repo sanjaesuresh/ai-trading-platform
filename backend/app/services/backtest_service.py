@@ -117,6 +117,11 @@ def run_backtest_pipeline(req: RunRequest, db: Session) -> BacktestRun:
         fee_bps=req.fee_bps,
         slippage_bps=req.slippage_bps,
         max_position_pct=req.max_position_pct,
+        target_vol=req.target_vol,
+        vol_lookback=req.vol_lookback,
+        stop_loss_pct=req.stop_loss_pct,
+        take_profit_pct=req.take_profit_pct,
+        max_drawdown_cutoff_pct=req.max_drawdown_cutoff_pct,
     )
     metrics = compute_metrics(result.equity_curve, result.trades, req.initial_capital)
 

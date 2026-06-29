@@ -49,6 +49,11 @@ def _pair_round_trips(trades: list[TradeRecord]) -> list[RoundTrip]:
 
     Long-only, one position at a time, so fills alternate BUY, SELL, BUY, SELL.
     PnL is net of fees: sell proceeds (gross - fee) minus buy cost (gross + fee).
+
+    NOTE: this pairing relies on the engine's strict BUY/SELL alternation
+    (one position at a time).  If a future phase adds shorting or pyramiding,
+    the pairing logic must be revisited — naïve alternation would mis-attribute
+    PnL across overlapping or same-direction entries.
     """
     round_trips: list[RoundTrip] = []
     open_buy: TradeRecord | None = None
