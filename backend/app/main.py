@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import backtests, evaluation, health, strategies
+from app.api.routes import backtests, evaluation, health, ingestion, strategies
 from app.core.config import get_settings
 from app.core.database import create_all_tables
 from app.core.logging import configure_logging, get_logger
@@ -46,6 +46,7 @@ def create_app() -> FastAPI:
     app.include_router(backtests.router)
     app.include_router(strategies.router)
     app.include_router(evaluation.router)
+    app.include_router(ingestion.router)
     return app
 
 

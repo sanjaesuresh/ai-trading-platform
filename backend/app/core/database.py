@@ -37,6 +37,7 @@ def create_all_tables() -> None:
     from app.models_db import (  # noqa: F401
         backtest_run,
         evaluation_run,
+        ingestion_run,
         market_data,
         trade,
     )
