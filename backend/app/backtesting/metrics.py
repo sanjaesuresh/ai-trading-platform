@@ -83,10 +83,15 @@ def compute_metrics(
         (final_equity - initial_capital) / initial_capital * 100.0 if initial_capital else 0.0
     )
 
-    # Annualized return (geometric), guarded against non-positive equity / no bars.
+    # Annualized return (geometric CAGR). The exponent uses elapsed bar
+    # intervals (n_bars - 1, not n_bars), and we never extrapolate a sub-year
+    # sample upward (years floored at 1.0). That keeps short datasets honest and
+    # numerically safe: the exponent stays in (0, 1], so the power cannot
+    # overflow the way ``growth ** (252 / n_bars)`` does on tiny inputs.
     if n_bars > 1 and initial_capital > 0 and final_equity > 0:
         growth = final_equity / initial_capital
-        annualized_return_pct = (growth ** (_PERIODS_PER_YEAR / n_bars) - 1.0) * 100.0
+        years = max((n_bars - 1) / _PERIODS_PER_YEAR, 1.0)
+        annualized_return_pct = (growth ** (1.0 / years) - 1.0) * 100.0
     else:
         annualized_return_pct = 0.0
 

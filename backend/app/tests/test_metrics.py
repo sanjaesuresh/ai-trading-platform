@@ -85,6 +85,22 @@ def test_zero_volatility_no_error() -> None:
     assert m.sortino_ratio == 0.0
 
 
+def test_annualized_return_short_dataset_is_finite() -> None:
+    # A 2-bar +50% curve must not overflow or annualize to an absurd number.
+    # Sub-year samples are not extrapolated upward, so it equals total return.
+    m = compute_metrics(_curve([100.0, 150.0]), [], initial_capital=100.0)
+    assert math.isfinite(m.annualized_return_pct)
+    assert abs(m.annualized_return_pct - m.total_return_pct) < 1e-9
+
+
+def test_annualized_return_multi_year_is_cagr() -> None:
+    # ~2 years of daily bars (505 points, 504 intervals) doubling -> ~41% CAGR.
+    equities = [100.0 * (2.0 ** (i / 504)) for i in range(505)]
+    m = compute_metrics(_curve(equities), [], initial_capital=100.0)
+    assert abs(m.total_return_pct - 100.0) < 1e-6
+    assert 35.0 < m.annualized_return_pct < 47.0
+
+
 def test_only_winners_profit_factor_finite_or_inf() -> None:
     trades = [_trade("BUY", 0, 1_000.0), _trade("SELL", 2, 1_200.0)]
     m = compute_metrics(_curve([100.0, 110.0, 120.0]), trades, initial_capital=100.0)
