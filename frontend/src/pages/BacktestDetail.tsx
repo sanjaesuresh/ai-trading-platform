@@ -9,7 +9,6 @@ import { RunStatusBadge } from '../components/RunStatusBadge'
 import {
   formatCurrency,
   formatPercent,
-  formatFraction,
   formatDate,
   returnClass,
 } from '../utils/format'
@@ -184,6 +183,7 @@ export default function BacktestDetail() {
               <dd className="font-mono text-sm font-semibold mt-1 text-zinc-50">
                 {run.metrics.sortino_ratio.toFixed(2)}
               </dd>
+              <p className="text-xs text-zinc-600 mt-1">risk-free rate 0</p>
             </div>
             <div>
               <dt className="text-xs text-zinc-500 uppercase tracking-wider">Avg Win</dt>
@@ -206,7 +206,7 @@ export default function BacktestDetail() {
             <div>
               <dt className="text-xs text-zinc-500 uppercase tracking-wider">Exposure</dt>
               <dd className="font-mono text-sm font-semibold mt-1 text-zinc-50">
-                {formatFraction(run.metrics.exposure_pct)}
+                {formatPercent(run.metrics.exposure_pct)}
               </dd>
             </div>
             <div>

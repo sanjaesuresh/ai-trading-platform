@@ -19,7 +19,7 @@ interface Card {
 }
 
 export function MetricsCards({ run }: MetricsCardsProps) {
-  const { metrics, final_equity, num_trades } = run
+  const { metrics, final_equity } = run
 
   const sharpeClass =
     metrics.sharpe_ratio >= 1
@@ -58,6 +58,7 @@ export function MetricsCards({ run }: MetricsCardsProps) {
       label: 'Sharpe Ratio',
       value: metrics.sharpe_ratio.toFixed(2),
       cls: sharpeClass,
+      note: 'risk-free rate 0',
     },
     {
       label: 'Win Rate',
@@ -71,9 +72,10 @@ export function MetricsCards({ run }: MetricsCardsProps) {
       cls: pfClass,
     },
     {
-      label: 'Total Trades',
-      value: String(num_trades),
+      label: 'Fills',
+      value: String(metrics.num_fills),
       cls: 'text-zinc-50',
+      note: `${metrics.num_round_trips} round trips`,
     },
   ]
 

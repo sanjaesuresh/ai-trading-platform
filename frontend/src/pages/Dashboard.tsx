@@ -56,7 +56,7 @@ function LatestRunCard({ run }: { run: RunSummary }) {
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-zinc-500 uppercase tracking-wider">Trades</dt>
+          <dt className="text-xs text-zinc-500 uppercase tracking-wider">Round Trips</dt>
           <dd className="font-mono text-lg font-semibold mt-0.5 text-zinc-50">
             {run.num_trades}
           </dd>
@@ -148,7 +148,8 @@ export default function Dashboard() {
       <div>
         <h1 className="text-xl font-semibold text-zinc-50">Dashboard</h1>
         <p className="text-sm text-zinc-500 mt-1">
-          Run simulated backtests and review results. Historical data only.
+          Run simulated backtests and review results. Historical data only —
+          not financial advice.
         </p>
       </div>
 

@@ -127,7 +127,7 @@ export default function Backtests() {
                     scope="col"
                     className="text-right px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wider"
                   >
-                    Trades
+                    Round Trips
                   </th>
                   <th
                     scope="col"
