@@ -49,9 +49,17 @@ class CombinationResult:
 class DistributionSummary:
     """Honest summary of a sweep / walk-forward distribution.
 
-    All of ``best``/``median``/``worst`` are over the out-of-sample objective
-    (falling back to in-sample when a result has no out-of-sample segment, e.g. a
-    pure sweep with no split).
+    ``best``/``median``/``worst`` are over the out-of-sample objective when one
+    exists, falling back to in-sample for a pure sweep with no split.
+    ``is_out_of_sample`` says which: a bare sweep is **in-sample only** and these
+    numbers are not out-of-sample evidence — the flag exists so a consumer can
+    never mistake the two.
+
+    ``best_params`` are the params of the *best-observed* cell (argmax of the
+    reported objective), NOT a recommendation — for walk-forward that is the
+    luckiest split, which you could not have chosen ahead of time. The honest
+    selection rule is ``select_best`` (in-sample), and ``overfit_flag`` / the gap
+    describe *that* selected combination.
     """
 
     objective: str
@@ -59,9 +67,12 @@ class DistributionSummary:
     median: float
     worst: float
     best_params: dict[str, Any]
-    pct_beating_baseline: float
+    # None when no baseline was run (e.g. a pure sweep) — distinct from 0.0,
+    # which means "a baseline ran and nothing beat it."
+    pct_beating_baseline: float | None
     in_sample_vs_out_sample_gap: float
     overfit_flag: bool
+    is_out_of_sample: bool
 
 
 @dataclass
@@ -138,19 +149,24 @@ def summarize(
             median=0.0,
             worst=0.0,
             best_params={},
-            pct_beating_baseline=0.0,
+            pct_beating_baseline=None,
             in_sample_vs_out_sample_gap=0.0,
             overfit_flag=False,
+            is_out_of_sample=False,
         )
 
     out_values = np.array([_out_or_in(r, objective) for r in results], dtype=float)
     best_idx = int(np.argmax(out_values))
+    # True only when every result carries a real out-of-sample segment (walk-
+    # forward); a pure sweep is in-sample only.
+    is_out_of_sample = all(r.out_sample is not None for r in results)
 
+    pct_beating_baseline: float | None
     if baseline_out_sample is not None:
         baseline_value = _objective_value(baseline_out_sample, objective)
         pct_beating_baseline = float(np.mean(out_values > baseline_value))
     else:
-        pct_beating_baseline = 0.0
+        pct_beating_baseline = None
 
     # The gap and overfit flag are about the in-sample-selected combination.
     selected = select_best(results, objective=objective)
@@ -172,6 +188,7 @@ def summarize(
         pct_beating_baseline=pct_beating_baseline,
         in_sample_vs_out_sample_gap=gap,
         overfit_flag=overfit_flag,
+        is_out_of_sample=is_out_of_sample,
     )
 
 

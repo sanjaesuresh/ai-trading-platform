@@ -78,10 +78,19 @@ def test_pct_beating_baseline() -> None:
     assert s.pct_beating_baseline == 0.5
 
 
-def test_no_baseline_pct_is_zero() -> None:
+def test_no_baseline_pct_is_none() -> None:
+    # None ("no baseline ran"), distinct from 0.0 ("a baseline ran, nothing beat it").
     combos = [_combo({"x": 1}, in_sample=_m(sharpe_ratio=1.0), out_sample=_m(sharpe_ratio=1.0))]
     s = summarize(combos, objective="sharpe_ratio", baseline_out_sample=None)
-    assert s.pct_beating_baseline == 0.0
+    assert s.pct_beating_baseline is None
+
+
+def test_is_out_of_sample_flag() -> None:
+    # A pure sweep (out_sample None) is in-sample only; a split run is out-of-sample.
+    sweep = [_combo({"x": 1}, in_sample=_m(sharpe_ratio=1.0), out_sample=None)]
+    assert summarize(sweep, objective="sharpe_ratio", baseline_out_sample=None).is_out_of_sample is False
+    wf = [_combo({"x": 1}, in_sample=_m(sharpe_ratio=1.0), out_sample=_m(sharpe_ratio=0.9))]
+    assert summarize(wf, objective="sharpe_ratio", baseline_out_sample=None).is_out_of_sample is True
 
 
 def test_overfit_flag_trips_on_large_gap() -> None:

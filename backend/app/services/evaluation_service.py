@@ -50,6 +50,12 @@ def validate_and_expand(req: SweepRequest) -> list[dict[str, Any]]:
     strategy's param model. Unknown strategy / invalid params / oversized grid all
     become a clean ``BacktestRequestError`` (HTTP 400).
     """
+    empty_keys = [key for key, values in req.param_grid.items() if not values]
+    if empty_keys:
+        raise BacktestRequestError(
+            f"Parameter grid has empty value list(s) for: {', '.join(empty_keys)}. "
+            "Give each swept parameter at least one value."
+        )
     n = count_combinations(req.param_grid)
     if n > req.max_combinations:
         raise BacktestRequestError(
@@ -77,8 +83,25 @@ def _run_kwargs(req: SweepRequest) -> dict[str, Any]:
     }
 
 
+# Shown with every result so the multiple-testing caveat travels with the data,
+# not only in the README. Testing many parameter combinations means some look
+# good by luck; only the out-of-sample, cost-aware view is evidence.
+_CAVEAT = (
+    "Simulated only — not financial advice. Many parameter combinations were "
+    "tested, so the best in-sample result is likely inflated by luck. Trust only "
+    "the out-of-sample, net-of-fees distribution; a bare sweep is in-sample only."
+)
+
+
 def _finite(value: float) -> float:
-    return value if math.isfinite(value) else _PROFIT_FACTOR_INF
+    """Map non-finite floats to JSON-safe stand-ins (Postgres rejects inf/NaN).
+
+    +inf → a large finite value (the profit-factor 'only winners' convention);
+    NaN / -inf → 0.0.
+    """
+    if math.isfinite(value):
+        return value
+    return _PROFIT_FACTOR_INF if value > 0 else 0.0
 
 
 def _metrics_to_dict(metrics: Metrics) -> dict[str, Any]:
@@ -89,7 +112,16 @@ def _metrics_to_dict(metrics: Metrics) -> dict[str, Any]:
 
 
 def _summary_to_dict(summary: DistributionSummary) -> dict[str, Any]:
-    return asdict(summary)
+    """Serialize the distribution summary, sanitizing non-finite floats.
+
+    ``best``/``median``/``worst``/the gap can be non-finite when the objective is
+    profit_factor and a combination has only winners — sanitize so the JSON column
+    stays valid.
+    """
+    data = asdict(summary)
+    for key in ("best", "median", "worst", "in_sample_vs_out_sample_gap"):
+        data[key] = _finite(data[key])
+    return data
 
 
 def _combination_to_dict(result: CombinationResult) -> dict[str, Any]:
@@ -131,6 +163,8 @@ def build_sweep_run(req: SweepRequest, featured: pd.DataFrame) -> EvaluationRun:
     )
     payload = {
         "summary": _summary_to_dict(summary),
+        "n_combinations": len(results),
+        "caveat": _CAVEAT,
         "combinations": [_combination_to_dict(r) for r in results],
     }
     return EvaluationRun(
@@ -169,6 +203,8 @@ def build_walk_forward_run(
     )
     payload = {
         "summary": _summary_to_dict(wf.summary) if wf.summary is not None else {},
+        "n_combinations": count_combinations(req.param_grid),
+        "caveat": _CAVEAT,
         "splits": [_split_to_dict(s) for s in wf.splits],
     }
     return EvaluationRun(

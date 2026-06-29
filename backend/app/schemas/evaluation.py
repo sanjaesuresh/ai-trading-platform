@@ -14,6 +14,20 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+# Objectives the runner may select/rank on. Constrained to higher-is-better
+# metric fields: selection maximizes the objective, so a "lower-is-better" field
+# (max_drawdown_pct, avg_loss) would silently pick the *worst* combination. A
+# field not in this set (or a typo) is rejected at the request boundary (422)
+# rather than raising deep in the run via getattr.
+Objective = Literal[
+    "sharpe_ratio",
+    "sortino_ratio",
+    "total_return_pct",
+    "annualized_return_pct",
+    "profit_factor",
+    "win_rate",
+]
+
 
 class SweepRequest(BaseModel):
     """Inputs to a parameter sweep over a strategy's grid.
@@ -44,11 +58,9 @@ class SweepRequest(BaseModel):
             "evaluated; an empty grid runs the strategy's own defaults once."
         ),
     )
-    objective: str = Field(
+    objective: Objective = Field(
         default="sharpe_ratio",
-        min_length=1,
-        max_length=64,
-        description="Metrics field to select/rank on (e.g. sharpe_ratio, total_return_pct).",
+        description="Higher-is-better metric to select/rank on; see Objective for the set.",
     )
     max_combinations: int = Field(
         default=200,

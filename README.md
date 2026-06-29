@@ -59,26 +59,31 @@ columns placed under the `data/` directory.
 
 ## Parameter sweeps and walk-forward evaluation (Phase 2 M5)
 
-`POST /evaluations/sweep` runs a strategy across a parameter grid; `POST
-/evaluations/walk-forward` runs an out-of-sample, anchored or rolling
-walk-forward. Both persist one aggregate row; read it back with `GET
-/evaluations` and `GET /evaluations/{id}`.
+Two endpoints, and the difference between them matters:
+
+- `POST /evaluations/sweep` runs a strategy across a parameter grid over the
+  whole series. Its numbers are **in-sample only** — they are *not* evidence a
+  strategy works, just a map of the grid. The summary's `is_out_of_sample` flag
+  is `false` for a sweep, and `pct_beating_baseline` is `null` (no baseline run).
+- `POST /evaluations/walk-forward` is the honest test: parameters are chosen on
+  an in-sample window and scored on a **strictly-later** out-of-sample window,
+  net of fees, against the rule-based baseline. `is_out_of_sample` is `true`.
 
 ```bash
-curl -X POST localhost:8000/evaluations/sweep \
+curl -X POST localhost:8000/evaluations/walk-forward \
   -H 'content-type: application/json' \
   -d '{"symbol":"SYNTH","csv_path":"data/sample/sample_ohlcv.csv","strategy_name":"trend_following","param_grid":{"rsi_buy_low":[40,45],"rsi_buy_high":[70,75]},"objective":"sharpe_ratio"}'
 ```
 
-Results are reported as a **full out-of-sample distribution net of fees**
-(best / median / worst), in-sample vs out-of-sample side by side, the fraction of
-combinations that beat the rule-based baseline, and an overfit flag — never a
-single "best cell." Parameters are chosen on in-sample data only; the test window
-is always strictly later in time. **A parameter sweep can fool itself**: many
-combinations tested means some look good by luck, so treat the out-of-sample,
-cost-aware view as the only evidence, and read the overfit flag and the
-multiple-testing caveat as part of the result. Still simulated only — not
-financial advice, and nothing here implies real or guaranteed returns.
+Both persist one aggregate row; read it back with `GET /evaluations` and `GET
+/evaluations/{id}`. Results are reported as a distribution (best / median /
+worst), with the in-sample-vs-out-of-sample gap, an overfit flag, the fraction of
+combinations beating the baseline, the number of combinations tested
+(`n_combinations`), and a `caveat` string carried in the payload. **A parameter
+sweep can fool itself**: many combinations tested means some look good by luck —
+so the overfit flag being `false` is not a green light, and only the
+out-of-sample, net-of-fees view is evidence. Still simulated only — not financial
+advice, and nothing here implies real or guaranteed returns.
 
 ## Backend tests (no database needed)
 

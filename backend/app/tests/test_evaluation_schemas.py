@@ -43,3 +43,14 @@ def test_scheme_constrained() -> None:
 def test_max_combinations_must_be_positive() -> None:
     with pytest.raises(ValidationError):
         SweepRequest(symbol="SPY", param_grid={}, max_combinations=0)
+
+
+def test_objective_constrained_to_higher_is_better() -> None:
+    assert SweepRequest(symbol="SPY", param_grid={}, objective="total_return_pct").objective == (
+        "total_return_pct"
+    )
+    # max_drawdown_pct is lower-is-better — max() would pick the worst; reject it.
+    with pytest.raises(ValidationError):
+        SweepRequest(symbol="SPY", param_grid={}, objective="max_drawdown_pct")
+    with pytest.raises(ValidationError):
+        SweepRequest(symbol="SPY", param_grid={}, objective="sharp_ratio")  # typo
