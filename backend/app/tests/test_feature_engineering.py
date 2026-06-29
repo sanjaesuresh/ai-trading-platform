@@ -43,6 +43,19 @@ def test_input_is_not_mutated() -> None:
 def test_indicators_eventually_have_values() -> None:
     out = add_technical_indicators(_frame())
     # After the longest warm-up (SMA-50), later rows are populated.
-    assert out["sma_50"].iloc[-1] == out["sma_50"].iloc[-1]  # not NaN
+    assert not np.isnan(out["sma_50"].iloc[-1])
     assert not np.isnan(out["rsi_14"].iloc[-1])
     assert not np.isnan(out["macd_signal"].iloc[-1])
+
+
+def test_sma50_is_nan_before_warmup() -> None:
+    out = add_technical_indicators(_frame(rows=80))
+    # min_periods=50: index 48 is the 49th row (still NaN), index 49 the first valid.
+    assert np.isnan(out["sma_50"].iloc[48])
+    assert not np.isnan(out["sma_50"].iloc[49])
+
+
+def test_short_frame_does_not_raise() -> None:
+    # Fewer rows than the SMA-50 window: no error, the column is all NaN.
+    out = add_technical_indicators(_frame(rows=5))
+    assert out["sma_50"].isna().all()
