@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.jobs.queue import enqueue
+from app.jobs.tasks import INGEST_TASK_NAME
 from app.models_db.ingestion_run import IngestionRun
 from app.schemas.ingestion import (
     IngestionEnqueueResponse,
@@ -44,7 +45,7 @@ async def trigger_ingestion(req: IngestionRunRequest) -> IngestionEnqueueRespons
                 "errors": [],
             },
         )
-    job_id = await enqueue("ingest_task", mode=req.mode, symbols=req.symbols)
+    job_id = await enqueue(INGEST_TASK_NAME, mode=req.mode, symbols=req.symbols)
     return IngestionEnqueueResponse(
         job_id=job_id, status="queued", mode=req.mode, symbols=req.symbols
     )

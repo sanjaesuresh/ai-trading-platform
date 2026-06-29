@@ -1,7 +1,8 @@
 """ARQ connection configuration and the central enqueue seam.
 
-Routes depend only on ``enqueue``; they never touch ARQ directly. Swapping the
-queue backend is one file.
+Routes depend only on ``enqueue``; they never touch ARQ directly (the only ARQ
+imports outside ``jobs/`` should be none). The worker (``worker.py``) does use
+ARQ types directly — the seam isolates the *request side*, not the whole package.
 """
 
 from __future__ import annotations

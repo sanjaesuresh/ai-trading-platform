@@ -13,6 +13,7 @@ session single-threaded and is fine for this single-user tool.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from app.core.database import SessionLocal
@@ -49,7 +50,9 @@ async def ingest_task(
             f"Unknown ingest mode {mode!r}; expected 'backfill' or 'incremental'."
         )
     log.info("Ingest task: mode=%s symbols=%s", mode, symbols)
-    runs = command(symbols)
+    # The command is synchronous (network + DB); run it off the event loop so the
+    # worker stays responsive and ARQ's heartbeat/timeout can still fire.
+    runs = await asyncio.to_thread(command, symbols)
     return {
         "mode": mode,
         "runs": [{"id": r.id, "symbol": r.symbol, "status": r.status} for r in runs],
@@ -73,10 +76,18 @@ async def evaluation_task(
             raise ValueError(f"EvaluationRun {evaluation_run_id} not found.")
         mark_running(session, run)
         try:
-            execute_evaluation_run(session, run)
+            # Synchronous, CPU-bound pipeline — run off the event loop. The task
+            # processes one job at a time, so the session stays single-threaded.
+            await asyncio.to_thread(execute_evaluation_run, session, run)
         except Exception as exc:
             mark_failed(session, run, str(exc))
             raise
         return {"evaluation_run_id": run.id, "status": run.status}
     finally:
         session.close()
+
+
+# Task names, derived from the function objects so the enqueue side and the
+# worker registry can never drift apart. Routes enqueue by these constants.
+INGEST_TASK_NAME = ingest_task.__name__
+EVALUATION_TASK_NAME = evaluation_task.__name__

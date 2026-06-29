@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.jobs.queue import enqueue
+from app.jobs.tasks import EVALUATION_TASK_NAME
 from app.models_db.evaluation_run import EvaluationRun
 from app.schemas.evaluation import (
     EvaluationDetail,
@@ -31,6 +32,7 @@ from app.services.backtest_service import BacktestRequestError
 from app.services.evaluation_service import (
     create_queued_sweep_run,
     create_queued_walk_forward_run,
+    mark_failed,
     run_sweep_pipeline,
     run_walk_forward_pipeline,
 )
@@ -45,6 +47,26 @@ def _bad_request(exc: BacktestRequestError) -> HTTPException:
     )
 
 
+async def _enqueue_or_fail(run: EvaluationRun, db: Session) -> None:
+    """Enqueue the worker job; if the queue is unreachable, mark the row failed.
+
+    The row is committed as ``queued`` before this call, so a queue outage would
+    otherwise strand it forever. Flipping it to ``failed`` keeps it visible and
+    pollable instead, and surfaces a clean 503.
+    """
+    try:
+        await enqueue(EVALUATION_TASK_NAME, evaluation_run_id=run.id)
+    except Exception as exc:  # noqa: BLE001 — any queue error must not strand the row
+        mark_failed(db, run, f"Failed to enqueue evaluation job: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "message": "Could not enqueue the evaluation job; the queue may be unavailable.",
+                "errors": [],
+            },
+        ) from exc
+
+
 @router.post("/sweep", response_model=EvaluationSummary, status_code=status.HTTP_202_ACCEPTED)
 async def enqueue_sweep(
     req: SweepRequest, db: Session = Depends(get_db)
@@ -55,7 +77,7 @@ async def enqueue_sweep(
     except BacktestRequestError as exc:
         raise _bad_request(exc) from exc
     # Row exists in `queued` before the job is enqueued, so it is always pollable.
-    await enqueue("evaluation_task", evaluation_run_id=run.id)
+    await _enqueue_or_fail(run, db)
     return EvaluationSummary.model_validate(run)
 
 
@@ -72,7 +94,7 @@ async def enqueue_walk_forward(
         run = create_queued_walk_forward_run(req, db)
     except BacktestRequestError as exc:
         raise _bad_request(exc) from exc
-    await enqueue("evaluation_task", evaluation_run_id=run.id)
+    await _enqueue_or_fail(run, db)
     return EvaluationSummary.model_validate(run)
 
 

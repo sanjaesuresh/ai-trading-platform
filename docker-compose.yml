@@ -9,7 +9,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-trading_bot}
       POSTGRES_DB: ${POSTGRES_DB:-trading_bot}
     ports:
-      - "5432:5432"
+      # Loopback-only: the backend/worker reach Postgres over the compose network
+      # (host db:5432). Binding to 127.0.0.1 keeps it off the LAN.
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -21,7 +23,11 @@ services:
   redis:
     image: redis:7
     ports:
-      - "6379:6379"
+      # Loopback-only. Redis here is unauthenticated and the ARQ worker
+      # deserializes job payloads, so it must not be reachable off-host. The
+      # backend/worker connect over the compose network (redis:6379), not this
+      # mapping — it exists only for local debugging.
+      - "127.0.0.1:6379:6379"
     volumes:
       - redisdata:/data
     healthcheck:

@@ -239,8 +239,13 @@ def _persist(db: Session, run: EvaluationRun) -> EvaluationRun:
 # --- async lifecycle (M6): enqueue creates a queued row; the worker runs it ----
 
 
-def _request_from_run(run: EvaluationRun) -> SweepRequest:
-    """Rebuild the typed request from a stored run's ``config`` + ``kind``."""
+def _request_from_run(run: EvaluationRun) -> SweepRequest | WalkForwardRequest:
+    """Rebuild the typed request from a stored run's ``config`` + ``kind``.
+
+    This is the single place that maps ``kind`` → request type; downstream code
+    selects behavior off the returned type (``isinstance``), so the two never
+    disagree.
+    """
     if run.kind == "sweep":
         return SweepRequest(**run.config)
     if run.kind == "walk_forward":

@@ -112,6 +112,33 @@ def test_sweep_enqueues_and_returns_queued(monkeypatch) -> None:
     assert captured["kwargs"] == {"evaluation_run_id": 99}
 
 
+def test_sweep_enqueue_failure_marks_run_failed(monkeypatch) -> None:
+    """If the queue is unreachable, the queued row is marked failed (not stranded)."""
+    run = _FakeRun("queued")
+    marked: dict[str, object] = {}
+
+    def fake_create(req, db):  # noqa: ANN001
+        return run
+
+    async def boom_enqueue(task_name: str, **kwargs: object) -> str:
+        raise RuntimeError("redis down")
+
+    def fake_mark_failed(db, r, error):  # noqa: ANN001
+        marked["error"] = error
+        r.status = "failed"
+        return r
+
+    monkeypatch.setattr(evaluation, "create_queued_sweep_run", fake_create)
+    monkeypatch.setattr(evaluation, "enqueue", boom_enqueue)
+    monkeypatch.setattr(evaluation, "mark_failed", fake_mark_failed)
+
+    resp = client.post("/evaluations/sweep", json={"symbol": "OSC", "param_grid": {}})
+
+    assert resp.status_code == 503
+    assert run.status == "failed"
+    assert "redis down" in str(marked["error"])
+
+
 def test_sync_path_still_runs_inline(monkeypatch) -> None:
     """The /sync sub-path keeps M5's inline behavior (201, completed)."""
 
