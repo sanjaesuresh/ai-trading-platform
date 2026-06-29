@@ -43,10 +43,12 @@ class _FakeClient:
     def __init__(self, status_code: int = 200, payload: Any = None) -> None:
         self.status_code = status_code
         self.payload = [] if payload is None else payload
-        self.calls: list[tuple[str, dict[str, str]]] = []
+        self.calls: list[tuple[str, dict[str, str], dict[str, str] | None]] = []
 
-    def get(self, url: str, params: dict[str, str]) -> _FakeResponse:
-        self.calls.append((url, params))
+    def get(
+        self, url: str, params: dict[str, str], headers: dict[str, str] | None = None
+    ) -> _FakeResponse:
+        self.calls.append((url, params, headers))
         return _FakeResponse(self.status_code, self.payload)
 
 
@@ -137,9 +139,11 @@ def test_frame_passes_data_quality_gate() -> None:
 def test_request_targets_daily_prices_with_token_and_dates() -> None:
     client = _FakeClient(payload=_clean_payload())
     _provider(client).fetch_daily("AAPL", date(2023, 1, 1), date(2023, 6, 30))
-    url, params = client.calls[0]
+    url, params, headers = client.calls[0]
     assert url.endswith("/tiingo/daily/AAPL/prices")
-    assert params["token"] == "test-key"
+    # The key travels in the auth header, never in the query string.
+    assert headers is not None and headers["Authorization"] == "Token test-key"
+    assert "token" not in params
     assert params["startDate"] == "2023-01-01"
     assert params["endDate"] == "2023-06-30"
     assert params["format"] == "json"

@@ -75,7 +75,9 @@ class _Response(Protocol):
 class _HttpClient(Protocol):
     """Minimal HTTP-client shape; injectable so tests need no network."""
 
-    def get(self, url: str, params: dict[str, str]) -> _Response: ...
+    def get(
+        self, url: str, params: dict[str, str], headers: dict[str, str] | None = None
+    ) -> _Response: ...
 
 
 class _UrllibResponse:
@@ -95,9 +97,13 @@ class _UrllibClient:
     def __init__(self, timeout_s: float = 30.0) -> None:
         self._timeout_s = timeout_s
 
-    def get(self, url: str, params: dict[str, str]) -> _Response:
+    def get(
+        self, url: str, params: dict[str, str], headers: dict[str, str] | None = None
+    ) -> _Response:
         query = urllib.parse.urlencode(params)
-        request = urllib.request.Request(f"{url}?{query}", method="GET")
+        request = urllib.request.Request(
+            f"{url}?{query}", method="GET", headers=headers or {}
+        )
         try:
             with urllib.request.urlopen(request, timeout=self._timeout_s) as resp:
                 body = resp.read().decode("utf-8")
@@ -149,6 +155,10 @@ class TiingoProvider(MarketDataProvider):
         self._min_interval_s = min_interval_s
         self._last_request_monotonic: float | None = None
 
+    @property
+    def name(self) -> str:
+        return "tiingo"
+
     def fetch_daily(
         self,
         symbol: str,
@@ -170,9 +180,11 @@ class TiingoProvider(MarketDataProvider):
             "startDate": start.isoformat(),
             "endDate": end.isoformat(),
             "format": "json",
-            "token": self._api_key,
         }
-        response = self._client.get(url, params)
+        # Send the key as an auth header, not a query param, so it never lands in
+        # an outbound URL (and thus never in proxy/access logs).
+        headers = {"Authorization": f"Token {self._api_key}"}
+        response = self._client.get(url, params, headers)
         self._raise_for_status(response, symbol)
 
         try:

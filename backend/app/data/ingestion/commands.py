@@ -33,19 +33,18 @@ log = get_logger(__name__)
 _TIINGO_MIN_INTERVAL_S = 1.5
 
 
-def make_provider(settings: Settings) -> tuple[MarketDataProvider, str]:
-    """Return ``(provider, provider_name)`` chosen from config.
+def make_provider(settings: Settings) -> MarketDataProvider:
+    """Return the market-data provider chosen from config.
 
     Tiingo when an API key is configured; otherwise the offline provider rooted
     at the allowed data directory. The offline path needs no credentials and is
-    what CI exercises.
+    what CI exercises. The provider reports its own ``name`` for the audit row.
     """
     if settings.tiingo_api_key:
-        provider: MarketDataProvider = TiingoProvider(
+        return TiingoProvider(
             settings.tiingo_api_key, min_interval_s=_TIINGO_MIN_INTERVAL_S
         )
-        return provider, "tiingo"
-    return OfflineProvider(settings.allowed_data_path), "offline"
+    return OfflineProvider(settings.allowed_data_path)
 
 
 def run_backfill(
@@ -60,15 +59,13 @@ def run_backfill(
     symbols = symbols or list(settings.backfill_universe)
     end = end or date.today()
     start = date.fromisoformat(settings.backfill_start)
-    provider, provider_name = make_provider(settings)
+    provider = make_provider(settings)
 
-    log.info("Backfill (%s): %s from %s to %s", provider_name, symbols, start, end)
+    log.info("Backfill (%s): %s from %s to %s", provider.name, symbols, start, end)
     owns_session = session is None
     session = session or SessionLocal()
     try:
-        return backfill_symbols(
-            session, provider, symbols, start, end, provider_name=provider_name
-        )
+        return backfill_symbols(session, provider, symbols, start, end)
     finally:
         if owns_session:
             session.close()
@@ -86,9 +83,9 @@ def run_incremental(
     symbols = symbols or list(settings.backfill_universe)
     end = end or date.today()
     default_start = date.fromisoformat(settings.backfill_start)
-    provider, provider_name = make_provider(settings)
+    provider = make_provider(settings)
 
-    log.info("Incremental (%s): %s through %s", provider_name, symbols, end)
+    log.info("Incremental (%s): %s through %s", provider.name, symbols, end)
     owns_session = session is None
     session = session or SessionLocal()
     try:
@@ -99,7 +96,6 @@ def run_incremental(
                 symbol,
                 end,
                 default_start=default_start,
-                provider_name=provider_name,
             )
             for symbol in symbols
         ]

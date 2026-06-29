@@ -34,6 +34,12 @@ class MarketDataProvider(ABC):
     hard-coded literals.
     """
 
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Short provider identifier (e.g. ``"tiingo"``) recorded in the audit row."""
+        raise NotImplementedError
+
     @abstractmethod
     def fetch_daily(
         self,

@@ -17,7 +17,6 @@ from datetime import date, datetime
 import pandas as pd
 
 from app.data.ingestion.logic import (
-    IngestionSummary,
     build_audit_summary,
     build_upsert_rows,
     compute_incremental_slice,
@@ -249,8 +248,3 @@ def test_audit_summary_zero_written_no_error_is_completed() -> None:
     summary = build_audit_summary(5, 0)
     assert summary.status == "completed"
     assert summary.error is None
-
-
-def test_audit_summary_returns_ingestion_summary_type() -> None:
-    summary = build_audit_summary(10, 10)
-    assert isinstance(summary, IngestionSummary)

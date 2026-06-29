@@ -19,7 +19,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_name: str = "AI Trading Platform (Phase 1)"
+    app_name: str = "AI Trading Platform (Phase 2)"
     log_level: str = "INFO"
 
     # Postgres only — no SQLite code path. Required from the environment (see

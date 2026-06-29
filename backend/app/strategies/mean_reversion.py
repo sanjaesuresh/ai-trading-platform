@@ -22,6 +22,7 @@ this mirrors the trend-following decision shape exactly.
 from __future__ import annotations
 
 import pandas as pd
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.strategies.base_strategy import (
     BaseStrategy,
@@ -33,20 +34,44 @@ from app.strategies.base_strategy import (
 # Indicators this strategy reads; if any is NaN (warm-up) it abstains (HOLD).
 _REQUIRED = ["sma_20", "std_20"]
 
-# Conservative, documented defaults (untuned).
-_ENTRY_STD = 2.0
-_EXIT_STD = 0.0
+
+class MeanReversionParams(BaseModel):
+    """Band widths (in rolling-std units) for mean reversion.
+
+    The single source of truth for this strategy's defaults and validation: the
+    constructor and the registry both go through this model, so direct
+    construction is validated too.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    entry_std: float = Field(default=2.0, gt=0.0, le=10.0)
+    exit_std: float = Field(default=0.0, ge=0.0, le=10.0)
+
+    @model_validator(mode="after")
+    def _entry_below_exit(self) -> MeanReversionParams:
+        if self.exit_std >= self.entry_std:
+            raise ValueError("exit_std must be < entry_std (exit band above entry band).")
+        return self
+
+
+_DEFAULTS = MeanReversionParams()
 
 
 class MeanReversionStrategy(BaseStrategy):
     name = "mean_reversion"
 
-    def __init__(self, entry_std: float = _ENTRY_STD, exit_std: float = _EXIT_STD) -> None:
+    def __init__(
+        self,
+        entry_std: float = _DEFAULTS.entry_std,
+        exit_std: float = _DEFAULTS.exit_std,
+    ) -> None:
         """Band widths in rolling-std units. Entry below the lower band, exit at
         the mean (``exit_std=0``) or partway back.
         """
-        self.entry_std = entry_std
-        self.exit_std = exit_std
+        params = MeanReversionParams(entry_std=entry_std, exit_std=exit_std)
+        self.entry_std = params.entry_std
+        self.exit_std = params.exit_std
 
     def generate_signal(self, row: pd.Series, current_position: Position) -> StrategyDecision:
         if any(pd.isna(row.get(col)) for col in _REQUIRED):

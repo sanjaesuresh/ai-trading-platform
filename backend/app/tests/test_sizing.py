@@ -50,18 +50,6 @@ def test_zero_vol_skips_trade() -> None:
     assert math.isfinite(result)
 
 
-def test_flat_zero_vol_window_documents_data_quality_intent() -> None:
-    # A flat price series (all-zero returns) is indistinguishable from a
-    # stale-data feed.  The function must return 0.0 (skip trade) rather than
-    # treating zero-vol as "infinite confidence" and deploying the max fraction.
-    flat_returns = [0.0] * 20
-    result = compute_position_fraction(flat_returns, target_vol=0.15, max_fraction=0.95)
-    assert result == pytest.approx(0.0), (
-        "flat/zero-vol window should skip the trade (return 0.0), "
-        "not deploy max_fraction as if this were a high-confidence entry"
-    )
-
-
 def test_nan_in_returns_skips_trade() -> None:
     # NaN in the series makes the vol estimate unreliable; skip the trade.
     returns = [0.01, float("nan"), 0.02, -0.01]

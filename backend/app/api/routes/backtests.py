@@ -20,7 +20,7 @@ router = APIRouter(prefix="/backtests", tags=["backtests"])
 
 @router.post("/run", response_model=RunSummary, status_code=status.HTTP_201_CREATED)
 def run_backtest_endpoint(req: RunRequest, db: Session = Depends(get_db)) -> RunSummary:
-    """Run the trend-following backtest on a CSV and persist the result."""
+    """Run a backtest with the named strategy and data source (CSV or DB), and persist it."""
     try:
         run = run_backtest_pipeline(req, db)
     except BacktestRequestError as exc:

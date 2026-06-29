@@ -38,6 +38,10 @@ class OfflineProvider(MarketDataProvider):
             raise MarketDataError(f"Offline provider base_dir does not exist: {resolved}")
         self._base_dir = resolved
 
+    @property
+    def name(self) -> str:
+        return "offline"
+
     def fetch_daily(
         self,
         symbol: str,

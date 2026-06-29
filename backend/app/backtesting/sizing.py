@@ -39,24 +39,10 @@ def compute_position_fraction(
         ``min(target_vol / realized_vol, max_fraction)``, clamped to
         ``[0, max_fraction]``.
 
-    Fallback policy
-    ---------------
     When volatility cannot be estimated — fewer than 2 returns, zero std, NaN,
-    or non-finite — the function returns ``0.0`` (skip the trade).
-
-    This is deliberately conservative: ``compute_position_fraction`` is called
-    only when the caller has opted into volatility targeting (``target_vol`` is
-    set).  In that mode deploying the maximum allocation precisely when risk is
-    unmeasurable inverts the purpose of a vol targeter — a flat/zero-vol window
-    often signals a data-quality problem, not high confidence.  Returning 0.0
-    causes the engine to silently skip the entry (``_execute_buy`` returns
-    without a fill when ``quantity <= 0``).
-
-    Trade-off: entries during the warmup window (the first ``vol_lookback``
-    bars) are intentionally skipped.  The engine's own ``i >= vol_lookback``
-    guard handles that case and falls back to ``max_position_pct`` before this
-    function is ever reached; the 0.0 fallback here only fires for genuinely
-    un-estimable vol within an otherwise-valid window (flat prices, NaN data).
+    or non-finite — returns ``0.0`` so the engine skips the entry. That is the
+    conservative choice: deploying max allocation precisely when risk is
+    unmeasurable would invert the purpose of a vol targeter.
     """
     # Guard the cap itself against pathological values.
     max_fraction = float(max_fraction)

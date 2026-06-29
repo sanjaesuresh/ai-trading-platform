@@ -130,8 +130,6 @@ def ingest_symbol(
     symbol: str,
     start: date,
     end: date,
-    *,
-    provider_name: str = "offline",
 ) -> IngestionRun:
     """Orchestrate one ingestion run for *symbol* over [*start*, *end*].
 
@@ -152,7 +150,7 @@ def ingest_symbol(
     On any unexpected exception the audit row is finalized as "failed" and the
     exception is logged; callers receive the IngestionRun for inspection.
     """
-    run = _create_ingestion_run(session, provider_name, symbol, start, end)
+    run = _create_ingestion_run(session, provider.name, symbol, start, end)
     rows_fetched = 0
     rows_written = 0
 
@@ -160,7 +158,7 @@ def ingest_symbol(
         # Fetch from provider.
         provider_frame = provider.fetch_daily(symbol, start, end)
         rows_fetched = len(provider_frame)
-        log.info("Fetched %d rows for %s from provider '%s'", rows_fetched, symbol, provider_name)
+        log.info("Fetched %d rows for %s from provider '%s'", rows_fetched, symbol, provider.name)
 
         # Data-quality gate — abort on blocking errors.
         report = check_data_quality(provider_frame)
@@ -205,8 +203,6 @@ def backfill_symbols(
     symbols: list[str],
     start: date,
     end: date,
-    *,
-    provider_name: str = "offline",
 ) -> list[IngestionRun]:
     """Backfill full [*start*, *end*] history for each symbol in *symbols*.
 
@@ -217,9 +213,7 @@ def backfill_symbols(
     """
     runs: list[IngestionRun] = []
     for symbol in symbols:
-        runs.append(
-            ingest_symbol(session, provider, symbol, start, end, provider_name=provider_name)
-        )
+        runs.append(ingest_symbol(session, provider, symbol, start, end))
     return runs
 
 
@@ -230,7 +224,6 @@ def ingest_incremental(
     end: date,
     *,
     default_start: date,
-    provider_name: str = "offline",
 ) -> IngestionRun:
     """Fetch only the post-latest range for *symbol* up to *end*.
 
@@ -245,8 +238,8 @@ def ingest_incremental(
 
     if start > end:
         log.info("Symbol %s already current through %s; nothing to fetch.", symbol, end)
-        run = _create_ingestion_run(session, provider_name, symbol, start, end)
+        run = _create_ingestion_run(session, provider.name, symbol, start, end)
         _finalize_ingestion_run(session, run, build_audit_summary(0, 0))
         return run
 
-    return ingest_symbol(session, provider, symbol, start, end, provider_name=provider_name)
+    return ingest_symbol(session, provider, symbol, start, end)
