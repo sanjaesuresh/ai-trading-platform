@@ -18,13 +18,27 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   backend:
     build: ./backend
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-trading_bot}:${POSTGRES_PASSWORD:-trading_bot}@db:5432/${POSTGRES_DB:-trading_bot}
+      REDIS_URL: redis://redis:6379/0
       ALLOWED_DATA_DIR: /app/data
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       CORS_ORIGINS: '["http://localhost:5173","http://127.0.0.1:5173"]'
+      TIINGO_API_KEY: ${TIINGO_API_KEY:-}
     ports:
       - "8000:8000"
     volumes:
@@ -32,6 +46,25 @@ services:
       - ./data:/app/data:ro
     depends_on:
       db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build: ./backend
+    command: ["arq", "app.jobs.worker.WorkerSettings"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-trading_bot}:${POSTGRES_PASSWORD:-trading_bot}@db:5432/${POSTGRES_DB:-trading_bot}
+      REDIS_URL: redis://redis:6379/0
+      ALLOWED_DATA_DIR: /app/data
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      TIINGO_API_KEY: ${TIINGO_API_KEY:-}
+    volumes:
+      - ./data:/app/data:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   frontend:
@@ -46,3 +79,4 @@ services:
 
 volumes:
   pgdata:
+  redisdata:

@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     # no stored bars yet. Daily EOD only; plain Postgres (no TimescaleDB).
     backfill_start: str = "2015-01-01"
 
+    # Redis URL for ARQ background jobs (M6). Set REDIS_URL in the environment to
+    # override; the default points to a locally-running Redis for dev.
+    redis_url: str = "redis://localhost:6379/0"
+
     @property
     def allowed_data_path(self) -> Path:
         return Path(self.allowed_data_dir).resolve()
