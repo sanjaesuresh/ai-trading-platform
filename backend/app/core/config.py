@@ -42,4 +42,6 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    # database_url has no literal default and is populated from the environment
+    # by pydantic-settings, which mypy can't see (no pydantic plugin enabled).
+    return Settings()  # type: ignore[call-arg]
