@@ -1,10 +1,20 @@
 export interface RunRequest {
   symbol: string
-  csv_path: string
+  // Omit for DB mode (read stored bars for `symbol`); set a path under the
+  // allowed data directory for CSV mode.
+  csv_path?: string
+  strategy_name?: string
+  strategy_params?: Record<string, number>
   initial_capital: number
   fee_bps: number
   slippage_bps: number
   max_position_pct: number
+  // Optional Phase 2 sizing / risk controls; null or omitted = disabled.
+  target_vol?: number | null
+  vol_lookback?: number
+  stop_loss_pct?: number | null
+  take_profit_pct?: number | null
+  max_drawdown_cutoff_pct?: number | null
 }
 
 export interface RunSummary {
