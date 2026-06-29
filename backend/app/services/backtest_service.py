@@ -71,54 +71,51 @@ def _resolve_csv_path(csv_path: str, settings: Settings) -> Path:
     return resolved
 
 
-def _load_frame_from_csv(req: RunRequest, settings: Settings) -> pd.DataFrame:
-    """CSV source: resolve path, load, return normalized frame."""
-    assert req.csv_path is not None  # guarded by caller
-    path = _resolve_csv_path(req.csv_path, settings)
-    try:
-        return load_ohlcv_csv(path)
-    except MarketDataError as exc:
-        raise BacktestRequestError(str(exc)) from exc
+def load_and_feature_frame(
+    symbol: str, csv_path: str | None, db: Session
+) -> pd.DataFrame:
+    """Load the source bars, run the data-quality gate, and add indicators.
 
-
-def _load_frame_from_db(req: RunRequest, db: Session) -> pd.DataFrame:
-    """DB source: query stored adjusted bars for req.symbol and transform to frame.
-
-    Raises ``BacktestRequestError`` if no bars are found for the symbol.
+    The single load→gate→feature seam, shared by the backtest pipeline and the M5
+    evaluation pipelines so the data path (and its path-traversal safety check)
+    has one implementation. Source is selected by ``csv_path``: provided → CSV
+    mode (resolved under the allowed data dir); ``None`` → DB mode (stored adjusted
+    bars for ``symbol``). Raises ``BacktestRequestError`` on any client-correctable
+    problem (bad path, bad CSV, no stored bars, failed quality gate).
     """
-    rows = query_market_data(db, req.symbol)
-    if not rows:
-        raise BacktestRequestError(
-            f"No market data found in the database for symbol '{req.symbol}'. "
-            "Run ingestion for this symbol first, or provide a csv_path."
-        )
-    return orm_rows_to_frame(rows)
+    settings = get_settings()
+    if csv_path is not None:
+        path = _resolve_csv_path(csv_path, settings)
+        try:
+            frame = load_ohlcv_csv(path)
+        except MarketDataError as exc:
+            raise BacktestRequestError(str(exc)) from exc
+    else:
+        rows = query_market_data(db, symbol)
+        if not rows:
+            raise BacktestRequestError(
+                f"No market data found in the database for symbol '{symbol}'. "
+                "Run ingestion for this symbol first, or provide a csv_path."
+            )
+        frame = orm_rows_to_frame(rows)
+
+    report = check_data_quality(frame)
+    if not report.passed:
+        raise BacktestRequestError("Data quality check failed.", report.errors)
+
+    return add_technical_indicators(frame)
 
 
 def run_backtest_pipeline(req: RunRequest, db: Session) -> BacktestRun:
     """Run the full pipeline and persist the result. Returns the saved run."""
-    settings = get_settings()
-
     # --- resolve strategy from the registry (fail fast on bad name/params) ---
     try:
         strategy = resolve_strategy(req.strategy_name, req.strategy_params)
     except (UnknownStrategyError, StrategyParamError) as exc:
         raise BacktestRequestError(str(exc)) from exc
 
-    # --- select data source ---
-    if req.csv_path is not None:
-        # CSV mode — Phase 1 path, unchanged.
-        frame = _load_frame_from_csv(req, settings)
-    else:
-        # DB mode — reads stored, adjusted bars by symbol.
-        frame = _load_frame_from_db(req, db)
-
-    # --- shared pipeline: quality gate → indicators → engine → metrics → persist ---
-    report = check_data_quality(frame)
-    if not report.passed:
-        raise BacktestRequestError("Data quality check failed.", report.errors)
-
-    featured = add_technical_indicators(frame)
+    # --- load → quality gate → indicators (shared seam) → engine → metrics → persist ---
+    featured = load_and_feature_frame(req.symbol, req.csv_path, db)
     result = run_backtest(
         featured,
         strategy,
