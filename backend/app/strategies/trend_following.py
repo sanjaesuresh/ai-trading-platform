@@ -17,7 +17,7 @@ from app.strategies.base_strategy import (
 # Required indicator columns; if any is NaN the strategy abstains (HOLD).
 _REQUIRED = ["sma_20", "sma_50", "rsi_14", "macd", "macd_signal", "volume_ma_20"]
 
-# Conventional, untuned RSI bands (no parameter sweep in Phase 1).
+# Conventional, untuned RSI bands — the defaults that reproduce Phase 1 behaviour.
 _RSI_BUY_LOW = 45.0
 _RSI_BUY_HIGH = 75.0
 _RSI_SELL_HIGH = 80.0
@@ -25,6 +25,17 @@ _RSI_SELL_HIGH = 80.0
 
 class TrendFollowingStrategy(BaseStrategy):
     name = "trend_following"
+
+    def __init__(
+        self,
+        rsi_buy_low: float = _RSI_BUY_LOW,
+        rsi_buy_high: float = _RSI_BUY_HIGH,
+        rsi_sell_high: float = _RSI_SELL_HIGH,
+    ) -> None:
+        """Tunable RSI bands. Defaults reproduce the Phase 1 baseline exactly."""
+        self.rsi_buy_low = rsi_buy_low
+        self.rsi_buy_high = rsi_buy_high
+        self.rsi_sell_high = rsi_sell_high
 
     def generate_signal(self, row: pd.Series, current_position: Position) -> StrategyDecision:
         if any(pd.isna(row.get(col)) for col in _REQUIRED):
@@ -46,7 +57,9 @@ class TrendFollowingStrategy(BaseStrategy):
         bull = {
             "SMA-20 > SMA-50": sma_20 > sma_50,
             "close > SMA-20": close > sma_20,
-            "RSI in [45,75]": _RSI_BUY_LOW <= rsi <= _RSI_BUY_HIGH,
+            f"RSI in [{self.rsi_buy_low:g},{self.rsi_buy_high:g}]": (
+                self.rsi_buy_low <= rsi <= self.rsi_buy_high
+            ),
             "MACD > signal": macd > macd_signal,
             "volume > avg": volume > volume_ma,
         }
@@ -54,7 +67,7 @@ class TrendFollowingStrategy(BaseStrategy):
         bear = {
             "SMA-20 < SMA-50": sma_20 < sma_50,
             "close < SMA-20": close < sma_20,
-            "RSI > 80": rsi > _RSI_SELL_HIGH,
+            f"RSI > {self.rsi_sell_high:g}": rsi > self.rsi_sell_high,
             "MACD < signal": macd < macd_signal,
         }
 

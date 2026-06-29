@@ -34,6 +34,19 @@ class RunRequest(BaseModel):
             "Omit to read from the database using ``symbol`` (DB mode)."
         ),
     )
+    # Strategy selection (Phase 2 M3). Defaults to trend-following so existing
+    # callers and the current frontend keep working unchanged. The name and
+    # params are validated against the registry at run time (clean 4xx on error).
+    strategy_name: str = Field(
+        default="trend_following",
+        min_length=1,
+        max_length=64,
+        description="Registered strategy name; see GET /strategies.",
+    )
+    strategy_params: dict = Field(
+        default_factory=dict,
+        description="Strategy-specific parameters, validated against the strategy's schema.",
+    )
     initial_capital: float = Field(default=100_000.0, gt=0)
     fee_bps: float = Field(default=5.0, ge=0, le=1_000)
     slippage_bps: float = Field(default=5.0, ge=0, le=1_000)

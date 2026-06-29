@@ -59,3 +59,10 @@ def test_short_frame_does_not_raise() -> None:
     # Fewer rows than the SMA-50 window: no error, the column is all NaN.
     out = add_technical_indicators(_frame(rows=5))
     assert out["sma_50"].isna().all()
+
+
+def test_std20_warmup_then_values() -> None:
+    # std_20 needs 20 observations: NaN at index 18, defined from index 19.
+    out = add_technical_indicators(_frame(rows=80))
+    assert np.isnan(out["std_20"].iloc[18])
+    assert not np.isnan(out["std_20"].iloc[19])

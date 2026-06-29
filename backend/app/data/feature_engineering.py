@@ -18,6 +18,7 @@ INDICATOR_COLUMNS = [
     "macd",
     "macd_signal",
     "volume_ma_20",
+    "std_20",
 ]
 
 
@@ -53,5 +54,8 @@ def add_technical_indicators(frame: pd.DataFrame) -> pd.DataFrame:
     out["macd_signal"] = out["macd"].ewm(span=9, min_periods=9, adjust=False).mean()
 
     out["volume_ma_20"] = out["volume"].rolling(window=20, min_periods=20).mean()
+
+    # Rolling close std (sample, ddof=1) — the band width input for mean reversion.
+    out["std_20"] = close.rolling(window=20, min_periods=20).std()
 
     return out

@@ -32,7 +32,11 @@ from app.models_db.trade import Trade
 from app.schemas.backtest import RunDetail, RunRequest
 from app.schemas.metrics import MetricsSchema
 from app.schemas.trade import EquityPointSchema, TradeSchema
-from app.strategies.trend_following import TrendFollowingStrategy
+from app.strategies.registry import (
+    StrategyParamError,
+    UnknownStrategyError,
+    resolve_strategy,
+)
 
 log = get_logger(__name__)
 
@@ -95,6 +99,12 @@ def run_backtest_pipeline(req: RunRequest, db: Session) -> BacktestRun:
     """Run the full pipeline and persist the result. Returns the saved run."""
     settings = get_settings()
 
+    # --- resolve strategy from the registry (fail fast on bad name/params) ---
+    try:
+        strategy = resolve_strategy(req.strategy_name, req.strategy_params)
+    except (UnknownStrategyError, StrategyParamError) as exc:
+        raise BacktestRequestError(str(exc)) from exc
+
     # --- select data source ---
     if req.csv_path is not None:
         # CSV mode — Phase 1 path, unchanged.
@@ -111,7 +121,7 @@ def run_backtest_pipeline(req: RunRequest, db: Session) -> BacktestRun:
     featured = add_technical_indicators(frame)
     result = run_backtest(
         featured,
-        TrendFollowingStrategy(),
+        strategy,
         symbol=req.symbol,
         initial_capital=req.initial_capital,
         fee_bps=req.fee_bps,
