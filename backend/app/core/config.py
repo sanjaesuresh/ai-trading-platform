@@ -22,10 +22,9 @@ class Settings(BaseSettings):
     app_name: str = "AI Trading Platform (Phase 1)"
     log_level: str = "INFO"
 
-    # Postgres only — no SQLite code path. Safe dev default matches docker-compose.
-    database_url: str = (
-        "postgresql+psycopg://trading_bot:trading_bot@localhost:5432/trading_bot"
-    )
+    # Postgres only — no SQLite code path. Required from the environment (see
+    # .env.example / docker-compose); no credential literal lives in source.
+    database_url: str
 
     # CSV loading is constrained to resolve under this directory (anti path-traversal).
     # Default: the repo-root data/ directory, relative to this file.
