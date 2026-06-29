@@ -39,7 +39,10 @@ docker compose up --build
 
 This starts:
 - **Postgres** on `:5432`
+- **Redis** on `:6379` — the background-job broker (Phase 2 M6)
 - **Backend** (FastAPI) on `:8000` — applies migrations, then serves
+- **Worker** (ARQ) — runs background ingestion / evaluation jobs and the nightly
+  incremental-ingest cron
 - **Frontend** (Vite) on `:5173`
 
 Open http://localhost:5173, then use the dashboard to run the sample backtest.
@@ -84,6 +87,43 @@ sweep can fool itself**: many combinations tested means some look good by luck �
 so the overfit flag being `false` is not a green light, and only the
 out-of-sample, net-of-fees view is evidence. Still simulated only — not financial
 advice, and nothing here implies real or guaranteed returns.
+
+## Background jobs and scheduling (Phase 2 M6)
+
+The long-running work — data ingestion and the M5 sweeps / walk-forward runs —
+runs off the HTTP request on an **ARQ** worker backed by **Redis** (`REDIS_URL`).
+Routes never touch ARQ directly; they go through a one-file enqueue seam
+(`app/jobs/queue.py`), so swapping the queue backend is contained.
+
+- **Ingestion.** `POST /ingestion/run` with `{"mode":"incremental"}` (or
+  `"backfill"`, plus an optional `symbols` list) enqueues a job and returns `202`
+  with the job id and `status: "queued"`. Read the audit trail with
+  `GET /ingestion` (newest first) and `GET /ingestion/{id}`. Ingestion is
+  idempotent — the `(symbol, timestamp)` upsert means a retry never duplicates
+  bars.
+- **Evaluations are async by default.** `POST /evaluations/sweep` and
+  `POST /evaluations/walk-forward` create the run row in `queued`, enqueue the
+  job, and return `202`; poll `GET /evaluations/{id}` until `status` is
+  `completed` or `failed`. The `/evaluations/sweep/sync` and
+  `/evaluations/walk-forward/sync` sub-paths keep the M5 inline behavior (`201`,
+  `completed`) for small grids. An oversized or invalid grid is still rejected
+  with a clean `400` at enqueue time, before anything is queued.
+- **Run lifecycle** reuses the existing `status` column on each run row:
+  `queued → running → completed | failed` (no schema migration). A failure
+  records the message on the row's `error` field.
+- **Nightly cron.** The worker runs one scheduled job: an incremental ingest over
+  the configured universe, at 06:00 UTC. No other scheduled work in Phase 2.
+- **Running the worker** (Compose does this for you):
+
+  ```bash
+  cd backend
+  arq app.jobs.worker.WorkerSettings   # needs Redis reachable at REDIS_URL
+  ```
+
+`REDIS_URL` comes from the environment with a safe dev default
+(`redis://localhost:6379/0`); Compose points it at the `redis` service. No
+secrets in source. Unit tests never need a live Redis — task functions are tested
+by calling them directly; a live-Redis round trip is a manual integration step.
 
 ## Backend tests (no database needed)
 
