@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import Backtests from './pages/Backtests'
 import BacktestDetail from './pages/BacktestDetail'
+import NewRun from './pages/NewRun'
 
 function NavBar() {
   const linkCls = ({ isActive }: { isActive: boolean }) =>
@@ -22,6 +23,11 @@ function NavBar() {
             <li>
               <NavLink to="/" end className={linkCls}>
                 Dashboard
+              </NavLink>
+            </li>
+            <li>
+              <NavLink to="/new" className={linkCls}>
+                New Run
               </NavLink>
             </li>
             <li>
@@ -63,6 +69,7 @@ export default function App() {
         <main className="max-w-6xl mx-auto px-6 py-8">
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/new" element={<NewRun />} />
             <Route path="/backtests" element={<Backtests />} />
             <Route path="/backtests/:id" element={<BacktestDetail />} />
           </Routes>

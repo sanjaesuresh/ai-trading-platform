@@ -189,6 +189,12 @@ export default function Dashboard() {
                 'Run Sample Backtest'
               )}
             </button>
+            <Link
+              to="/new"
+              className="inline-flex items-center px-4 py-2 border border-zinc-700 text-zinc-200 text-sm font-medium rounded transition-colors hover:border-zinc-500"
+            >
+              Configure a run →
+            </Link>
             {runSuccess && (
               <p role="status" className="text-sm text-emerald-400">
                 Complete — latest run updated below.
