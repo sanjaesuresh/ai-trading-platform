@@ -5,6 +5,7 @@ import BacktestDetail from './pages/BacktestDetail'
 import NewRun from './pages/NewRun'
 import Evaluations from './pages/Evaluations'
 import EvaluationDetail from './pages/EvaluationDetail'
+import Ingestion from './pages/Ingestion'
 
 function NavBar() {
   const linkCls = ({ isActive }: { isActive: boolean }) =>
@@ -40,6 +41,11 @@ function NavBar() {
             <li>
               <NavLink to="/evaluations" className={linkCls}>
                 Evaluations
+              </NavLink>
+            </li>
+            <li>
+              <NavLink to="/ingestion" className={linkCls}>
+                Ingestion
               </NavLink>
             </li>
           </ul>
@@ -81,6 +87,7 @@ export default function App() {
             <Route path="/backtests/:id" element={<BacktestDetail />} />
             <Route path="/evaluations" element={<Evaluations />} />
             <Route path="/evaluations/:id" element={<EvaluationDetail />} />
+            <Route path="/ingestion" element={<Ingestion />} />
           </Routes>
         </main>
       </div>
