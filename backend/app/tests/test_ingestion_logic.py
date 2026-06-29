@@ -12,7 +12,7 @@ Covers:
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 import pandas as pd
 
@@ -21,6 +21,7 @@ from app.data.ingestion.logic import (
     build_audit_summary,
     build_upsert_rows,
     compute_incremental_slice,
+    compute_incremental_start,
 )
 
 # ---------------------------------------------------------------------------
@@ -138,6 +139,23 @@ def test_duplicate_timestamps_in_input_filtered_by_cutoff() -> None:
     result = compute_incremental_slice(cutoff, frame)
     # Only bars strictly after the 2nd bar's timestamp should remain.
     assert (result["timestamp"] > pd.Timestamp(cutoff)).all()
+
+
+# ---------------------------------------------------------------------------
+# compute_incremental_start
+# ---------------------------------------------------------------------------
+
+
+def test_incremental_start_backfill_returns_default() -> None:
+    """No stored bars → request from the configured default start."""
+    default = date(2015, 1, 1)
+    assert compute_incremental_start(None, default) == default
+
+
+def test_incremental_start_is_day_after_latest() -> None:
+    """With stored bars, the fetch starts the day after the latest one."""
+    latest = datetime(2023, 6, 30, 0, 0, 0)
+    assert compute_incremental_start(latest, date(2015, 1, 1)) == date(2023, 7, 1)
 
 
 # ---------------------------------------------------------------------------

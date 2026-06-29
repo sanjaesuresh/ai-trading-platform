@@ -24,6 +24,7 @@ from app.data.ingestion.logic import (
     build_audit_summary,
     build_upsert_rows,
     compute_incremental_slice,
+    compute_incremental_start,
 )
 from app.data.providers.base import MarketDataProvider
 from app.models_db.ingestion_run import IngestionRun
@@ -196,3 +197,56 @@ def ingest_symbol(
             log.exception("Could not finalize IngestionRun %s after failure", run.id)
 
     return run
+
+
+def backfill_symbols(
+    session: Session,
+    provider: MarketDataProvider,
+    symbols: list[str],
+    start: date,
+    end: date,
+    *,
+    provider_name: str = "offline",
+) -> list[IngestionRun]:
+    """Backfill full [*start*, *end*] history for each symbol in *symbols*.
+
+    Runs :func:`ingest_symbol` once per symbol and returns the audit rows in the
+    same order. Each symbol is independent: one symbol's failure (rate limit,
+    bad data) is recorded on its own ``IngestionRun`` and does not abort the rest.
+    Idempotent — re-running converges via the upsert.
+    """
+    runs: list[IngestionRun] = []
+    for symbol in symbols:
+        runs.append(
+            ingest_symbol(session, provider, symbol, start, end, provider_name=provider_name)
+        )
+    return runs
+
+
+def ingest_incremental(
+    session: Session,
+    provider: MarketDataProvider,
+    symbol: str,
+    end: date,
+    *,
+    default_start: date,
+    provider_name: str = "offline",
+) -> IngestionRun:
+    """Fetch only the post-latest range for *symbol* up to *end*.
+
+    The start date is the day after the latest stored bar (or *default_start*
+    when nothing is stored yet), so the provider is asked only for new bars —
+    keeping requests inside rate limits. When the symbol is already current
+    (computed start is after *end*) this is a recorded no-op rather than an
+    empty-fetch failure. Scheduling this nightly is M6; here it is a callable.
+    """
+    latest_ts = get_latest_timestamp(session, symbol)
+    start = compute_incremental_start(latest_ts, default_start)
+
+    if start > end:
+        log.info("Symbol %s already current through %s; nothing to fetch.", symbol, end)
+        run = _create_ingestion_run(session, provider_name, symbol, start, end)
+        _finalize_ingestion_run(session, run, build_audit_summary(0, 0))
+        return run
+
+    return ingest_symbol(session, provider, symbol, start, end, provider_name=provider_name)

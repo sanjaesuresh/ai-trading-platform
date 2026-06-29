@@ -7,7 +7,8 @@ effects.  They are the correctness core; the DB-I/O layer in db.py calls them.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date as date_type
+from datetime import datetime, timedelta
 
 import pandas as pd
 
@@ -49,6 +50,31 @@ def compute_incremental_slice(
     cutoff = pd.Timestamp(latest_stored_ts)
     mask = provider_frame["timestamp"] > cutoff
     return provider_frame.loc[mask].copy().reset_index(drop=True)
+
+
+def compute_incremental_start(
+    latest_stored_ts: datetime | None,
+    default_start: date_type,
+) -> date_type:
+    """Return the start date an incremental fetch should request.
+
+    Backfill case
+    -------------
+    When *latest_stored_ts* is ``None`` (no bars stored yet), *default_start* is
+    returned — the provider is asked for the full configured history.
+
+    Incremental case
+    ----------------
+    When bars exist, the start is the day *after* the latest stored bar, so the
+    provider is only asked for the post-latest range (respecting rate limits).
+    The strictly-greater incremental slice in :func:`compute_incremental_slice`
+    still dedups defensively, so requesting the same day is harmless.
+
+    Pure function — no database, no network.
+    """
+    if latest_stored_ts is None:
+        return default_start
+    return latest_stored_ts.date() + timedelta(days=1)
 
 
 def build_upsert_rows(symbol: str, frame: pd.DataFrame) -> list[dict]:

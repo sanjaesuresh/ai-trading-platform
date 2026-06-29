@@ -99,12 +99,27 @@ def check_data_quality(frame: pd.DataFrame) -> DataQualityReport:
             if big_gaps:
                 warnings.append(f"{big_gaps} large timestamp gap(s) (> {_GAP_FACTOR}x median spacing).")
 
-    close_change = frame["close"].pct_change().abs()
-    big_jumps = int((close_change > _JUMP_FRACTION).sum())
-    if big_jumps:
-        warnings.append(
-            f"{big_jumps} suspicious single-bar price jump(s) (> {_JUMP_FRACTION:.0%} close-to-close)."
-        )
+    # Suspicious single-bar jumps in the *raw* close. When the frame carries
+    # corporate-action fields (provider output), a split on the same bar legitimately
+    # gaps the raw close, so it is not flagged; an unexplained jump still is. Frames
+    # without those columns (plain CSV) keep the original behaviour.
+    big_jump_mask = frame["close"].pct_change().abs() > _JUMP_FRACTION
+    if "split_factor" in frame.columns:
+        split_bar = frame["split_factor"].fillna(1.0) != 1.0
+        unexplained = big_jump_mask & ~split_bar
+        big_jumps = int(unexplained.sum())
+        if big_jumps:
+            warnings.append(
+                f"{big_jumps} suspicious single-bar price jump(s) "
+                f"(> {_JUMP_FRACTION:.0%} close-to-close) not explained by a split."
+            )
+    else:
+        big_jumps = int(big_jump_mask.sum())
+        if big_jumps:
+            warnings.append(
+                f"{big_jumps} suspicious single-bar price jump(s) "
+                f"(> {_JUMP_FRACTION:.0%} close-to-close)."
+            )
 
     return DataQualityReport(
         passed=len(errors) == 0,

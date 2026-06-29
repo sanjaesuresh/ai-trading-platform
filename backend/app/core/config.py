@@ -35,6 +35,19 @@ class Settings(BaseSettings):
     # CORS origins allowed to call the API (the Vite dev server by default).
     cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
+    # Tiingo provider (Phase 2 M2). No literal default: an empty key disables the
+    # Tiingo path cleanly and the offline provider stays the credential-free
+    # default that CI exercises. Never commit a real key — set $TIINGO_API_KEY.
+    tiingo_api_key: str = ""
+
+    # Symbol universe for the first Tiingo backfill. Kept small and liquid to stay
+    # inside the free-tier limits; confirm before running a real backfill.
+    backfill_universe: list[str] = ["SPY", "AAPL", "MSFT"]
+
+    # Earliest date a backfill / incremental run will request when a symbol has
+    # no stored bars yet. Daily EOD only; plain Postgres (no TimescaleDB).
+    backfill_start: str = "2015-01-01"
+
     @property
     def allowed_data_path(self) -> Path:
         return Path(self.allowed_data_dir).resolve()
