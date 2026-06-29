@@ -29,12 +29,14 @@ log = get_logger(__name__)
 
 
 async def ingest_task(
-    ctx: dict[str, Any], *, mode: str, symbols: list[str] | None = None
+    ctx: dict[str, Any], *, mode: str = "incremental", symbols: list[str] | None = None
 ) -> dict[str, Any]:
     """Run a backfill or incremental ingest over *symbols* (None → the universe).
 
     Returns a small summary of the resulting ``IngestionRun`` ids/statuses. The
-    underlying command opens and closes its own session.
+    underlying command opens and closes its own session. ``mode`` defaults to
+    ``incremental`` so the nightly cron (which passes no args) does the safe,
+    cheap update; a full ``backfill`` is always an explicit request.
     """
     # Resolve via the module globals (not a frozen map) so the choice stays
     # monkeypatchable and adding a mode is a one-line change.

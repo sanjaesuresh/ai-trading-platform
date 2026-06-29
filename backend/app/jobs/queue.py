@@ -25,7 +25,9 @@ async def enqueue(task_name: str, /, *args: object, **kwargs: object) -> str | N
     """
     pool: ArqRedis = await create_pool(redis_settings())
     try:
-        job = await pool.enqueue_job(task_name, *args, **kwargs)
+        # ARQ types enqueue_job's **kwargs as its own keyword-only options
+        # (_job_id, _defer_until, …); our task kwargs are passed through by name.
+        job = await pool.enqueue_job(task_name, *args, **kwargs)  # type: ignore[arg-type]
         return job.job_id if job else None
     finally:
         await pool.aclose()
