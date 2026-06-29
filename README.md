@@ -149,6 +149,27 @@ npm run dev       # http://localhost:5173
 The frontend reads the API base URL from `VITE_API_BASE_URL` (default
 `http://localhost:8000`).
 
+### Web UI flows (Phase 2 M7)
+
+The nav exposes the full loop, and the simulated-only disclaimer renders on every
+page (a site-wide banner plus an inline note on each results-bearing surface):
+
+- **New Run** (`/new`) — pick a symbol and strategy, tune the strategy's
+  parameters (the inputs render from each strategy's JSON parameter schema, so a
+  new strategy needs no frontend change), set capital / fees / slippage / max
+  position and the optional sizing + risk controls, then run. On submit it opens
+  the new run's detail.
+- **Evaluations** (`/evaluations`) — lists sweeps and walk-forward runs with a
+  status badge, polling while any is `queued`/`running`. The detail view polls to
+  completion, then shows the **honest distribution**: best / median / worst of the
+  out-of-sample objective, an in-sample-vs-out-of-sample marker, the in/out gap,
+  the overfit flag, the fraction of combinations beating the baseline, the count
+  of combinations tested, and the multiple-testing caveat — never the single best
+  cell on its own. A bare sweep is clearly marked in-sample only.
+- **Ingestion** (`/ingestion`) — trigger a backfill or incremental ingest and
+  watch the audit trail (provider, symbol, range, rows fetched/written, status,
+  error), polling while any row is in flight.
+
 ## Layout
 
 ```
