@@ -3,6 +3,10 @@ interface RunStatusBadgeProps {
 }
 
 const CONFIG: Record<string, { label: string; cls: string }> = {
+  queued: {
+    label: 'Queued',
+    cls: 'bg-slate-800 text-slate-300 border border-slate-600',
+  },
   completed: {
     label: 'Completed',
     cls: 'bg-emerald-950 text-emerald-400 border border-emerald-800',
