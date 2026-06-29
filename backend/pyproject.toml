@@ -43,14 +43,26 @@ src = ["app"]
 select = ["E", "F", "I", "B", "C4", "UP", "SIM"]
 ignore = ["E501"]  # line length handled by formatter
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's Depends/Query in argument defaults is the intended idiom, not a bug.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
+
 [tool.mypy]
-python_version = "3.11"
+# 3.12 so mypy can parse the numpy type stubs (which use the `type` statement);
+# the application code itself stays 3.11-compatible.
+python_version = "3.12"
 warn_unused_ignores = true
 warn_redundant_casts = true
 ignore_missing_imports = true
 # pandas-heavy modules are pragmatic, not strictly typed; keep mypy practical.
 disallow_untyped_defs = false
 check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+# Tests construct pandas frames with literal values; pandas-stubs flags the
+# scalar .loc assignments. Tests are not the typed contract — keep them out.
+module = "app.tests.*"
+ignore_errors = true
 
 [tool.pytest.ini_options]
 testpaths = ["app/tests"]

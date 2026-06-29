@@ -39,13 +39,43 @@ baseline (`strategies/trend_following.py`), and `roadmap.md` §3 before reviewin
   making the sample backtest look good, that's in-sample fitting, not edge. The
   more free parameters, the more suspicious. Flag every hard-coded threshold and
   ask what justifies it.
-- **Multiple testing / parameter sweeps.** If many parameter combinations were
-  tried and the best reported, the best result is inflated by selection — the
-  probability of backtest overfitting rises with the number of configurations
-  tried (Bailey & López de Prado). A sweep that reports only the winner, with no
-  out-of-sample check and no accounting for how many were tried, is not evidence.
-  The roadmap defers sweeps and walk-forward to Phase 2 *specifically* to control
-  this — flag any attempt to fake that rigor early.
+- **Multiple testing / parameter sweeps.** Always ask for N (the number of
+  configurations tried) — a review that omits N is mathematically unverifiable.
+  Named anchors below are Phase 2/4 tools; their absence is why a profitability
+  claim isn't yet supported in Phase 1, not a Phase 1 blocker.
+  - **False Strategy Theorem** (Bailey & López de Prado, 2021): with enough
+    trials any in-sample Sharpe is achievable even if every strategy tested is
+    unprofitable. Rule: if N is omitted, flag the result as unverifiable.
+  - **Minimum backtest length vs N** ("Pseudo-Mathematics," Bailey et al., AMS
+    Notices 2014): ≈ 2·ln(N) / E[max Sharpe]. With 5 years of daily data, testing
+    more than ~45 independent configs nearly guarantees a spurious in-sample Sharpe
+    with OOS expectation of zero*.
+  - **PBO via CSCV** (Bailey et al., J. Computational Finance 2016): probability
+    the in-sample winner ranks below the OOS median. PBO > 50% means the
+    selection procedure is unreliable; practitioners treat 20–30%+ as a fragility
+    signal to investigate, not a hard threshold*. Requires the full N×T
+    performance matrix, not just the winner's curve.
+  - **Deflated Sharpe Ratio (DSR) / Probabilistic Sharpe Ratio (PSR)** (Bailey &
+    López de Prado, 2012/2014): PSR corrects for track-record length, skew, and
+    kurtosis; DSR adjusts the PSR benchmark for N trials. Use PSR when N = 1, DSR
+    when N > 1. Convention: DSR ≥ 0.95 to provisionally accept; below ~0.5 is
+    indistinguishable from luck*. Always report N, skew, and kurtosis alongside
+    any Sharpe.
+  - **Harvey-Liu-Zhu haircut** (2016): ~316 equity factors published 1967–2014;
+    a new factor now needs roughly t > 3.0 to be credible at that search size*.
+    Prefer Bonferroni / BHY corrections over a flat Sharpe haircut.
+  - A sweep reporting only the winner, no N, and no OOS is not evidence. The
+    roadmap defers sweeps and walk-forward to Phase 2 *specifically* to control
+    this — flag any attempt to fake that rigor early.
+- **Data-snooping tests.** White's Reality Check (2000) and Hansen's SPA (2005)
+  bootstrap the best model's performance against all N candidates tried. Sullivan,
+  Timmermann & White (1999) applied the Reality Check to ~7,846 technical trading
+  rules over 100 years of DJIA data: apparent profitability vanished once the
+  search size was accounted for. Ask whether such a test was applied; its absence
+  means profitability was not demonstrated.
+- **Walk-forward can still overfit** via cumulative per-window selection pressure
+  even when each window is correctly re-fit. Demand the per-window equity curve;
+  a single lucky sub-period carrying the aggregate result is a red flag.
 - **Curve-fitting to the synthetic sample.** The Phase 1 sample CSV is
   deliberately tuned to produce trades. A strategy tuned back to that sample is
   doubly circular. Results on it exercise the engine; they are not evidence of
@@ -64,14 +94,34 @@ baseline (`strategies/trend_following.py`), and `roadmap.md` §3 before reviewin
   every number in-sample? In-sample performance is nearly meaningless on its own.
   If walk-forward exists, check the windows don't overlap into the future and
   parameters are re-fit per window, not globally.
-- **Robustness.** Does performance depend on one lucky period or a single trade?
-  Is it stable across reasonable parameter neighborhoods (a result that
-  evaporates if a threshold moves by one is overfit)?
+- **Overfit tells — signals to investigate, not automatic rejections.**
+  - *Parameter cliffs:* performance collapses if a key threshold shifts by 1–2%;
+    robust edges tolerate moderate perturbations.
+  - *Only the winner of a sweep reported, no N, no OOS:* significance is
+    unverifiable without N (False Strategy Theorem).
+  - *OOS absent or reused in development:* any result that influenced parameter
+    selection is in-sample by definition.
+  - *Annualized Sharpe > 2 for a daily long-only strategy:* a signal to
+    scrutinize, not an automatic fail; context-dependent — HFT and market-making
+    differ structurally*.
+  - *Edge evaporates when costs rise by 5–10 bps or 2×:* real edges persist under
+    modest cost sensitivity.
+  - *Survivorship:* selecting assets by current index membership or symbol
+    availability today introduces look-ahead — the strategy never saw delisted
+    names.
+  - *Single-trade or single-period dependence:* remove that period or trade and
+    check whether the thesis still holds.
 
 ### 4. Honest framing
 - No language implying the strategy is profitable or "works" in the real world.
   Simulated results imply nothing about the future. (Coordinate with
   `trading-disclaimer-reviewer` if user-facing copy is involved.)
+- **Honest base rates.** Most rule-based and ML strategies fail to beat a simple
+  passive baseline net of costs in published walk-forward tests. Quantopian's own
+  research found that in-sample Sharpe had "little value in predicting
+  out-of-sample performance" (`docs/quant-review-reference.md`, "Honest base
+  rates"). A result that looks good in simulation is a hypothesis to stress-test,
+  not evidence of a reliable edge.
 
 ## How to review
 
@@ -107,3 +157,5 @@ note what the strategy does well, and don't demand Phase 2/4 rigor (walk-forward
 PBO, deflated Sharpe) as a *blocker* on Phase 1 work — flag its absence as the
 reason a profitability claim isn't yet supported, which is the honest framing the
 project wants.
+
+Background and sources: `docs/quant-review-reference.md` — "Overfitting and data-snooping," "Overfit tells," "Honest base rates."

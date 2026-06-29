@@ -95,15 +95,35 @@ A backtest that looks profitable is the default trap, not the goal. Before
 claiming a strategy is good:
 
 - Evaluate **net of fees and slippage**, not gross. The engine already applies
-  both; never report gross returns.
+  both; never report gross returns. Also run a **cost sensitivity check** at
+  1×, 2×, and 3× the stated cost assumption — an edge that disappears at 2×
+  costs is fragile. Annual cost drag ≈ annual turnover × round-trip cost;
+  high-turnover strategies are far more sensitive to this.
 - Compare against the **rule-based trend-following baseline** on the same data.
   Beating buy-and-hold and beating the baseline are different bars; state which.
+- **Test parameter-neighborhood robustness.** If performance collapses when a
+  key threshold moves by 1–2%, the result is fit to noise, not a genuine edge
+  (a parameter cliff). Robust edges tolerate moderate perturbations.
 - Be honest about **overfitting**. If you tuned thresholds to make the sample
   data look good, say so — that is in-sample fitting, not edge. The roadmap
   defers parameter sweeps and walk-forward to Phase 2 for exactly this reason;
-  do not fake rigor the platform doesn't have yet.
+  do not fake rigor the platform doesn't have yet. When a sweep does run
+  (Phase 2), always disclose N — the total number of configurations tried —
+  alongside the best result. Reporting only the winner with no N and no
+  out-of-sample period is selection bias, not edge: this is the False Strategy
+  Theorem (Bailey & López de Prado, 2021).
+- (Phase 2) **Do not fit position sizing to the backtest.** Sizing that is
+  optimized on the sample is data snooping. When sizing arrives, prefer
+  fractional Kelly (½ or ¼) plus a hard per-position cap, and use a **lagged**
+  volatility estimate — contemporaneous vol is look-ahead.
+- **Anchor to honest base rates.** Most rule-based and ML strategies fail to
+  beat a simple passive baseline net of costs in published walk-forward tests.
+  A backtest that looks profitable is a hypothesis to stress-test, not evidence
+  of a reliable edge.
 - Keep the **simulated-only framing**. No result here implies real-world
   returns, and nothing the strategy emits is advice.
+
+Background and sources: `docs/quant-review-reference.md`.
 
 ## Verify before declaring done
 
@@ -117,3 +137,5 @@ Run the real checks and see them pass:
 When the strategy logic is non-trivial, hand the diff to the
 `backtest-integrity-reviewer` agent (look-ahead / leakage) and the
 `quant-strategy-reviewer` agent (logic + evaluation rigor) before merging.
+For cost-, sizing-, or risk-sensitive changes, also hand to the
+`execution-realism-reviewer` agent.

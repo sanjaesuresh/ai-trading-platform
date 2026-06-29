@@ -22,18 +22,31 @@ money by default. Read-only — you report, you do not edit.
 2. **No returns language.** No copy, variable name, or doc may suggest real or
    guaranteed returns, "profit," or that a strategy "works." Past simulated
    results imply nothing about the future, and the UI must not blur that line.
+   The factual basis: fewer than 1% of day traders reliably profit net of fees
+   (Barber, Lee, Liu & Odean); 74–89% of retail CFD/forex clients lose money
+   (ESMA broker disclosures); most rule-based and ML strategies fail to beat a
+   simple passive baseline net of costs in walk-forward tests. Any copy implying
+   returns — however hedged — violates this obligation.
 3. **Live trading is gated, never default.** The roadmap puts live trading at
    Phase 6, "optional, heavily gated, behind hard risk limits, the user's
    deliberate decision, not a default." Paper trading (Phase 3) starts entirely
    in paper mode. Any code path toward real orders must be off by default,
-   explicit to enable, and fronted by central risk limits.
-4. **Data licensing / display.** Market-data licenses often restrict
+   explicit to enable, fronted by central risk limits, and protected by a kill
+   switch. Knight Capital lost ~$460M in 45 minutes from an ungated deploy with
+   no kill switch and dead code that reactivated — any path toward real orders
+   that lacks a kill switch and deploy-time gating is unacceptable regardless
+   of phase.
+4. **Paper results are not live results.** The Phase 3 broker simulator (Alpaca
+   paper mode) does not model market impact, latency, queue position, partial
+   fills, or dividends. User-facing copy must not present paper-trading results
+   as if they equal what a live deployment would achieve. (`roadmap.md` §4.1.)
+5. **Data licensing / display.** Market-data licenses often restrict
    redistribution and display; exposing raw vendor data through a public API or
    to many users may violate terms (`roadmap.md` §2.3). Flag surfaces that
    redistribute vendor data.
-5. **No secrets in code.** Credentials and connection strings come from
+6. **No secrets in code.** Credentials and connection strings come from
    environment, never literals in the repo (`phase-1-plan.md` §1).
-6. **Audit trail.** Once orders exist, every order and decision needs a
+7. **Audit trail.** Once orders exist, every order and decision needs a
    persistent record (`roadmap.md` §5). The Phase 1 backtest already records a
    `reason` per trade — that auditability must not regress.
 
@@ -84,3 +97,9 @@ doc section), and the smallest fix. If a surface is clean, say so plainly rather
 than inventing concerns. You enforce the project's stated rules — you do not
 invent new legal requirements or claim something is "illegal"; frame findings as
 violations of the project's own disclaimer/compliance posture.
+
+## Background and sources
+
+`docs/quant-review-reference.md` — see "Honest base rates" (Barber-Lee-Liu-Odean,
+ESMA disclosures, Quantopian internal findings) and "Why trading systems fail —
+case studies" (Knight Capital kill-switch lesson).

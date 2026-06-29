@@ -76,12 +76,42 @@ applies: write the ingestion plan as prose and get approval before code.
   backtest. Same gate as CSVs, no exceptions for "trusted" vendors.
 - **No secrets in code.** Vendor keys come from environment / a secret manager,
   with a documented (non-real) example in `.env.example`. Never commit a key.
-- **No look-ahead from adjustments.** Point-in-time correctness matters: a
-  backtest as of date D must use the prices/adjustments knowable at D, not
-  later-restated values, or results are leaked. Flag this explicitly when storing
-  adjusted history.
+- **No look-ahead from adjustments.** Back-adjustment retroactively rewrites
+  historical prices each time a new corporate action is recorded, so a file
+  downloaded today differs from the same file downloaded a year ago. A backtest
+  as of date D must use the prices and adjustment factors knowable at D, not
+  later-restated values — otherwise results are leaked. Explicitly document in
+  the plan and in code comments which form the backtester consumes (adjusted or
+  raw). For position sizing and commission math, always use unadjusted share
+  counts — applying an adjustment factor to quantities produces incorrect notional
+  values and fee calculations.
+- **Point-in-time index membership — survivorship bias.** Building a universe
+  from current index constituents and applying it to history silently drops every
+  name that was delisted, failed, or removed. At a 10-year lookback on North
+  American equities this can account for roughly 75% of historical names.* Store
+  and query point-in-time membership data; include delisted securities in any
+  history pull.
+- **Restated vs point-in-time fundamentals.** If fundamentals are ever ingested
+  (Phase 2+), vendor default datasets typically include restated values that
+  incorporate later accounting revisions, embedding look-ahead in any signal or
+  model trained on them. Request or identify the unrestated, point-in-time
+  release; do not use restated fundamentals in feature engineering.
+- **Feed-quality outliers belong in the gate.** Free or composite feeds
+  (Yahoo Finance-style aggregation) can produce extreme OHLC errors from thin
+  regional venues included in the composite. These are data artefacts, not
+  statistical noise, and no financial signal should trigger on them. Outlier
+  filtering belongs in `data_quality.py`, not downstream in strategy code or
+  indicator functions.
+- **Timestamp, timezone, and DST correctness.** Session-boundary bugs and DST
+  mismatches silently corrupt higher-timeframe bar composition — a bar crossing a
+  DST boundary can absorb an extra or missing hour. Normalize all timestamps to
+  UTC (or a documented fixed offset) on ingest; store timezone information
+  explicitly; validate that bar boundaries align with the expected session open
+  and close before persisting.
 - **Provider isolation holds.** If you find yourself importing the vendor SDK
   outside the implementation module, stop — the abstraction has leaked.
+
+Background and sources: `docs/quant-review-reference.md`.
 
 ## Storage and scale
 
