@@ -23,10 +23,7 @@ class _ScriptedStrategy(BaseStrategy):
         self._action = action
 
     def generate_signal(self, row: pd.Series, current_position: Position) -> StrategyDecision:
-        return StrategyDecision(
-            timestamp=row["timestamp"], symbol=str(row.get("symbol", "")),
-            action=self._action, confidence=0.7, reason=f"scripted {self._action.value}",
-        )
+        return StrategyDecision(action=self._action, reason=f"scripted {self._action.value}")
 
 
 def _frame(opens: list[float]) -> pd.DataFrame:

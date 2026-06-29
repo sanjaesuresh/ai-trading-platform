@@ -30,7 +30,6 @@ def test_bullish_row_yields_buy() -> None:
     decision = TrendFollowingStrategy().generate_signal(_row(), Position())
     assert decision.action is StrategySignal.BUY
     assert decision.reason
-    assert 0.5 < decision.confidence <= 0.95
 
 
 def test_bearish_row_yields_sell() -> None:
@@ -54,3 +53,17 @@ def test_warmup_nan_yields_hold() -> None:
     decision = TrendFollowingStrategy().generate_signal(row, Position())
     assert decision.action is StrategySignal.HOLD
     assert decision.reason
+
+
+def test_rsi_too_low_prevents_buy() -> None:
+    # Every other bull condition holds, but RSI below the 45 floor blocks entry.
+    row = _row(rsi_14=40.0)
+    decision = TrendFollowingStrategy().generate_signal(row, Position())
+    assert decision.action is StrategySignal.HOLD
+
+
+def test_rsi_overbought_alone_triggers_sell() -> None:
+    # RSI above 80 fires the bear branch even with the trend otherwise intact.
+    row = _row(rsi_14=85.0)
+    decision = TrendFollowingStrategy().generate_signal(row, Position(quantity=10.0))
+    assert decision.action is StrategySignal.SELL

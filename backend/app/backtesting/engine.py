@@ -13,7 +13,6 @@ Rules (Phase 1):
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 
 import pandas as pd
 
@@ -55,8 +54,6 @@ class BacktestResult:
     total_return_pct: float
     equity_curve: list[EquityPoint] = field(default_factory=list)
     trades: list[TradeRecord] = field(default_factory=list)
-    started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
-    completed_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 def run_backtest(
@@ -69,8 +66,6 @@ def run_backtest(
     max_position_pct: float = 0.95,
 ) -> BacktestResult:
     """Walk the frame bar by bar and produce trades plus the equity curve."""
-    started_at = datetime.now(UTC)
-
     state = _State(cash=float(initial_capital))
     pending: StrategySignal | None = None
     pending_reason = ""
@@ -129,8 +124,6 @@ def run_backtest(
         total_return_pct=total_return_pct,
         equity_curve=state.equity_curve,
         trades=state.trades,
-        started_at=started_at,
-        completed_at=datetime.now(UTC),
     )
 
 

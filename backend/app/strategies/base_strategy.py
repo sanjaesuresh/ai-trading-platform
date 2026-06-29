@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any
 
 import pandas as pd
 
@@ -30,14 +29,14 @@ class Position:
 
 @dataclass
 class StrategyDecision:
-    """A typed, explainable decision for a single bar."""
+    """A typed, explainable decision for a single bar.
 
-    timestamp: pd.Timestamp
-    symbol: str
+    The engine consumes exactly these two fields: ``action`` drives the fill and
+    ``reason`` is recorded on the trade for auditability.
+    """
+
     action: StrategySignal
-    confidence: float
     reason: str
-    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class BaseStrategy(ABC):
@@ -48,4 +47,3 @@ class BaseStrategy(ABC):
     @abstractmethod
     def generate_signal(self, row: pd.Series, current_position: Position) -> StrategyDecision:
         """Turn one indicator row plus the current position into a decision."""
-        raise NotImplementedError
