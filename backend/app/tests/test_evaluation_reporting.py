@@ -12,21 +12,21 @@ from app.evaluation.reporting import (
 
 def _m(**over: float) -> Metrics:
     """A zeroed Metrics with selected fields overridden."""
-    base = dict(
-        total_return_pct=0.0,
-        annualized_return_pct=0.0,
-        max_drawdown_pct=0.0,
-        sharpe_ratio=0.0,
-        sortino_ratio=0.0,
-        win_rate=0.0,
-        profit_factor=0.0,
-        num_round_trips=0,
-        num_fills=0,
-        avg_win=0.0,
-        avg_loss=0.0,
-        avg_holding_days=0.0,
-        exposure_pct=0.0,
-    )
+    base: dict = {
+        "total_return_pct": 0.0,
+        "annualized_return_pct": 0.0,
+        "max_drawdown_pct": 0.0,
+        "sharpe_ratio": 0.0,
+        "sortino_ratio": 0.0,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "num_round_trips": 0,
+        "num_fills": 0,
+        "avg_win": 0.0,
+        "avg_loss": 0.0,
+        "avg_holding_days": 0.0,
+        "exposure_pct": 0.0,
+    }
     base.update(over)
     return Metrics(**base)  # type: ignore[arg-type]
 
