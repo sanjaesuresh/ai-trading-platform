@@ -34,6 +34,11 @@ def create_all_tables() -> None:
     Alembic owns schema migrations; this is the convenience path for first boot.
     """
     # Import models so they register on Base.metadata before create_all.
-    from app.models_db import backtest_run, market_data, trade  # noqa: F401
+    from app.models_db import (  # noqa: F401
+        backtest_run,
+        evaluation_run,
+        market_data,
+        trade,
+    )
 
     Base.metadata.create_all(bind=engine)
