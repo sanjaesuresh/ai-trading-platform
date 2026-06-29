@@ -6,7 +6,7 @@ from logging.config import fileConfig
 
 from alembic import context
 from app.core.config import get_settings
-from app.models_db import backtest_run, market_data, trade  # noqa: F401
+from app.models_db import backtest_run, ingestion_run, market_data, trade  # noqa: F401
 from app.models_db.base import Base
 from sqlalchemy import engine_from_config, pool
 
