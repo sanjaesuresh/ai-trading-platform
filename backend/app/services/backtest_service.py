@@ -1,8 +1,14 @@
 """Orchestrates one backtest run end to end and persists it.
 
 This is the single place the pipeline is wired together:
-resolve & safety-check the CSV path -> load -> data-quality gate -> indicators ->
-engine -> metrics -> persist run + trades in one transaction -> return.
+
+  CSV mode:  resolve & safety-check csv_path → load → quality gate → …
+  DB mode:   query market_data for symbol → transform → quality gate → …
+  (shared)   → indicators → engine → metrics → persist run + trades → return.
+
+The data source is selected by the presence or absence of ``req.csv_path``:
+  - ``csv_path`` provided → CSV mode (Phase 1 path, unchanged).
+  - ``csv_path`` is None  → DB mode (reads stored, adjusted bars by symbol).
 """
 
 from __future__ import annotations
@@ -18,6 +24,7 @@ from app.backtesting.metrics import Metrics, compute_metrics
 from app.core.config import Settings, get_settings
 from app.core.logging import get_logger
 from app.data.data_quality import check_data_quality
+from app.data.db_loader import orm_rows_to_frame, query_market_data
 from app.data.feature_engineering import add_technical_indicators
 from app.data.market_data_loader import MarketDataError, load_ohlcv_csv
 from app.models_db.backtest_run import BacktestRun
@@ -60,16 +67,43 @@ def _resolve_csv_path(csv_path: str, settings: Settings) -> Path:
     return resolved
 
 
-def run_backtest_pipeline(req: RunRequest, db: Session) -> BacktestRun:
-    """Run the full pipeline and persist the result. Returns the saved run."""
-    settings = get_settings()
+def _load_frame_from_csv(req: RunRequest, settings: Settings) -> pd.DataFrame:
+    """CSV source: resolve path, load, return normalized frame."""
+    assert req.csv_path is not None  # guarded by caller
     path = _resolve_csv_path(req.csv_path, settings)
-
     try:
-        frame = load_ohlcv_csv(path)
+        return load_ohlcv_csv(path)
     except MarketDataError as exc:
         raise BacktestRequestError(str(exc)) from exc
 
+
+def _load_frame_from_db(req: RunRequest, db: Session) -> pd.DataFrame:
+    """DB source: query stored adjusted bars for req.symbol and transform to frame.
+
+    Raises ``BacktestRequestError`` if no bars are found for the symbol.
+    """
+    rows = query_market_data(db, req.symbol)
+    if not rows:
+        raise BacktestRequestError(
+            f"No market data found in the database for symbol '{req.symbol}'. "
+            "Run ingestion for this symbol first, or provide a csv_path."
+        )
+    return orm_rows_to_frame(rows)
+
+
+def run_backtest_pipeline(req: RunRequest, db: Session) -> BacktestRun:
+    """Run the full pipeline and persist the result. Returns the saved run."""
+    settings = get_settings()
+
+    # --- select data source ---
+    if req.csv_path is not None:
+        # CSV mode — Phase 1 path, unchanged.
+        frame = _load_frame_from_csv(req, settings)
+    else:
+        # DB mode — reads stored, adjusted bars by symbol.
+        frame = _load_frame_from_db(req, db)
+
+    # --- shared pipeline: quality gate → indicators → engine → metrics → persist ---
     report = check_data_quality(frame)
     if not report.passed:
         raise BacktestRequestError("Data quality check failed.", report.errors)
