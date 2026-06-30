@@ -39,6 +39,7 @@ def create_all_tables() -> None:
         evaluation_run,
         ingestion_run,
         market_data,
+        paper_trading,
         trade,
     )
 

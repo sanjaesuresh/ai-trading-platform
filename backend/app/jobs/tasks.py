@@ -14,8 +14,12 @@ session single-threaded and is fine for this single-user tool.
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
+from app.brokers.alpaca import AlpacaPaperBroker
+from app.brokers.base import BrokerPort
+from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.core.logging import get_logger
 from app.data.ingestion.commands import run_backfill, run_incremental
@@ -25,8 +29,26 @@ from app.services.evaluation_service import (
     mark_failed,
     mark_running,
 )
+from app.services.paper_trading_service import (
+    get_deployment,
+    list_deployments,
+    run_paper_cycle,
+    run_reconcile_phase,
+    run_submit_phase,
+)
 
 log = get_logger(__name__)
+
+
+def _resolve_paper_broker() -> BrokerPort | None:
+    """Build the Alpaca paper broker from settings, or None when no keys are
+    configured (the daily runner then logs and skips — it cannot paper-trade
+    without a real broker)."""
+    settings = get_settings()
+    if not settings.alpaca_api_key or not settings.alpaca_secret_key:
+        log.warning("No Alpaca paper keys configured; skipping paper run.")
+        return None
+    return AlpacaPaperBroker.from_settings(settings)
 
 
 async def ingest_task(
@@ -87,7 +109,83 @@ async def evaluation_task(
         session.close()
 
 
+_PHASES = {
+    "submit": run_submit_phase,
+    "reconcile": run_reconcile_phase,
+    "both": run_paper_cycle,
+}
+
+
+async def paper_run_task(
+    ctx: dict[str, Any],
+    *,
+    deployment_id: int | None = None,
+    trading_day: str | None = None,
+    phase: str = "both",
+    day_offset: int = 0,
+) -> dict[str, Any]:
+    """Run a paper-trading phase for one deployment (or all enabled deployments
+    when ``deployment_id`` is None — the cron path).
+
+    ``phase`` selects ``submit`` (pre-open, places opening-auction orders),
+    ``reconcile`` (post-session, records fills + attributes slippage against the
+    now-ingested modeled open), or ``both`` (a manual run-now). ``trading_day`` is
+    an ISO date string; otherwise it is today (UTC) minus ``day_offset`` days — the
+    reconcile cron uses offset 1 so it finalizes the *prior* session after that
+    day's bar has been ingested. Skips cleanly when no Alpaca keys are configured.
+    """
+    runner = _PHASES.get(phase)
+    if runner is None:
+        raise ValueError(f"Unknown paper phase {phase!r}; expected submit/reconcile/both.")
+    broker = _resolve_paper_broker()
+    if broker is None:
+        return {"skipped": "no_broker"}
+    if trading_day:
+        day = date.fromisoformat(trading_day)
+    else:
+        day = datetime.now(UTC).date() - timedelta(days=day_offset)
+
+    session = SessionLocal()
+    try:
+        if deployment_id is not None:
+            dep = get_deployment(session, deployment_id)
+            deployments = [dep] if dep is not None else []
+        else:
+            deployments = [d for d in list_deployments(session) if d.enabled]
+
+        results: list[dict[str, Any]] = []
+        for dep in deployments:
+            # Synchronous (DB + network); run off the event loop so the worker
+            # heartbeat keeps firing. One job at a time → session stays single-threaded.
+            res = await asyncio.to_thread(runner, session, broker, dep, day)
+            results.append(
+                {
+                    "deployment_id": res.deployment_id,
+                    "skipped": res.skipped,
+                    "orders": res.num_orders,
+                    "fills": res.num_fills,
+                    "reconciliations": res.num_reconciliations,
+                    "halted": res.halted,
+                }
+            )
+        return {"trading_day": day.isoformat(), "phase": phase, "runs": results}
+    finally:
+        session.close()
+
+
+async def paper_submit_cron(ctx: dict[str, Any]) -> dict[str, Any]:
+    """Cron entry: pre-open SUBMIT pass for every enabled deployment (today)."""
+    return await paper_run_task(ctx, phase="submit", day_offset=0)
+
+
+async def paper_reconcile_cron(ctx: dict[str, Any]) -> dict[str, Any]:
+    """Cron entry: RECONCILE the prior session (yesterday) after its bar has been
+    ingested, so slippage is attributed against the real modeled open."""
+    return await paper_run_task(ctx, phase="reconcile", day_offset=1)
+
+
 # Task names, derived from the function objects so the enqueue side and the
 # worker registry can never drift apart. Routes enqueue by these constants.
 INGEST_TASK_NAME = ingest_task.__name__
 EVALUATION_TASK_NAME = evaluation_task.__name__
+PAPER_RUN_TASK_NAME = paper_run_task.__name__
