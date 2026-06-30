@@ -45,6 +45,11 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       CORS_ORIGINS: '["http://localhost:5173","http://127.0.0.1:5173"]'
       TIINGO_API_KEY: ${TIINGO_API_KEY:-}
+      # Alpaca PAPER credentials (Phase 3). Read from the root .env; empty by
+      # default so the FakeBroker stays the credential-free default. The paper
+      # base URL is hardcoded in app.brokers.alpaca — never set a live endpoint.
+      ALPACA_API_KEY: ${ALPACA_API_KEY:-}
+      ALPACA_SECRET_KEY: ${ALPACA_SECRET_KEY:-}
     ports:
       - "8000:8000"
     volumes:
@@ -65,6 +70,10 @@ services:
       ALLOWED_DATA_DIR: /app/data
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       TIINGO_API_KEY: ${TIINGO_API_KEY:-}
+      # The daily paper-trading runner is an ARQ job in this worker — it needs the
+      # Alpaca paper credentials. Paper base URL is hardcoded/guarded in code.
+      ALPACA_API_KEY: ${ALPACA_API_KEY:-}
+      ALPACA_SECRET_KEY: ${ALPACA_SECRET_KEY:-}
     volumes:
       - ./data:/app/data:ro
     depends_on:

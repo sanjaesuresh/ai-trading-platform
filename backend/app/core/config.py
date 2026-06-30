@@ -52,6 +52,15 @@ class Settings(BaseSettings):
     # override; the default points to a locally-running Redis for dev.
     redis_url: str = "redis://localhost:6379/0"
 
+    # Alpaca PAPER trading (Phase 3). No literal defaults: empty keys disable the
+    # live paper path cleanly and the credential-free FakeBroker stays the default
+    # CI exercises. Never commit real keys — set $ALPACA_API_KEY / $ALPACA_SECRET_KEY.
+    # The base URL is intentionally NOT configurable: it is hardcoded to the paper
+    # endpoint in app.brokers.alpaca and guarded there, so no config can reach the
+    # live (real-money) endpoint.
+    alpaca_api_key: str = ""
+    alpaca_secret_key: str = ""
+
     @property
     def allowed_data_path(self) -> Path:
         return Path(self.allowed_data_dir).resolve()
