@@ -2,6 +2,8 @@
 
 Tests cover:
 - ``_metadata_to_orm``: ModelMetadata → MLModel ORM field mapping.
+- ``sanitize_result_dict``: recursive non-finite float sanitization.
+- ``_upsert_ml_model_row``: idempotent model registration.
 - ``build_ml_inputs`` transform logic (pure path, mocked DB).
 - ``create_queued_ml_run``: correct kind, symbol, strategy_name on the row.
 - ``execute_ml_run``: dispatches walk-forward vs backtest by kind, raises on unknown.
@@ -321,3 +323,149 @@ def test_build_ml_inputs_no_data_raises(monkeypatch: pytest.MonkeyPatch) -> None
 
     with pytest.raises(BacktestRequestError, match="No market data"):
         ml_service.build_ml_inputs(object(), ["SPY"])
+
+
+# ---------------------------------------------------------------------------
+# Finding #1 — sanitize_result_dict: recursive non-finite float sanitization
+# ---------------------------------------------------------------------------
+
+
+def test_sanitize_result_dict_removes_non_finite() -> None:
+    """sanitize_result_dict converts inf/nan in nested dicts/lists to finite values.
+
+    The resulting dict must be JSON-serializable (no NaN/Infinity tokens) and all
+    float values must be finite.
+    """
+    import json
+    import math
+
+    from app.services.evaluation_service import sanitize_result_dict
+
+    raw: dict = {
+        "profit_factor": math.inf,
+        "sharpe": math.nan,
+        "neg_inf": -math.inf,
+        "nested": {"brier": math.nan, "auc": 0.55},
+        "list_val": [math.nan, 1.0, math.inf],
+        "int_val": 42,
+        "str_val": "ok",
+        "none_val": None,
+    }
+    result = sanitize_result_dict(raw)
+
+    # Must JSON-serialize without error and contain no non-finite tokens.
+    encoded = json.dumps(result)
+    assert "Infinity" not in encoded
+    assert "NaN" not in encoded
+
+    # Non-finite floats are replaced with finite stand-ins.
+    assert math.isfinite(result["profit_factor"])
+    assert math.isfinite(result["sharpe"])
+    assert math.isfinite(result["neg_inf"])
+
+    # Nested dict is recursed.
+    assert math.isfinite(result["nested"]["brier"])
+    assert result["nested"]["auc"] == pytest.approx(0.55)
+
+    # List is recursed.
+    assert math.isfinite(result["list_val"][0])
+    assert result["list_val"][1] == pytest.approx(1.0)
+    assert math.isfinite(result["list_val"][2])
+
+    # Non-float values pass through unchanged.
+    assert result["int_val"] == 42
+    assert result["str_val"] == "ok"
+    assert result["none_val"] is None
+
+
+# ---------------------------------------------------------------------------
+# Finding #2 — _upsert_ml_model_row: idempotent model registration
+# ---------------------------------------------------------------------------
+
+
+def _make_model_metadata():  # type: ignore[return]
+    """Minimal ModelMetadata for testing _upsert_ml_model_row."""
+    from app.ml.registry import ModelMetadata
+
+    return ModelMetadata(
+        model_id="deadbeef" * 2,
+        feature_spec_version="v1",
+        feature_columns=["f_rsi_14"],
+        horizon=5,
+        deadband=0.01,
+        symbols=["SPY"],
+        train_start="2022-01-03",
+        train_end="2023-12-29",
+        lgbm_params={},
+        seed=42,
+        num_threads=1,
+        calibration="isotonic",
+        calibrated=True,
+        enter_threshold=0.60,
+        exit_threshold=0.55,
+        min_hold=5,
+        n_fit=300,
+        n_calib=100,
+        n_thresh=100,
+        effective_n=250.0,
+        selection_config={},
+        validation_metrics={},
+        code_git_hash="abc",
+        code_dirty=False,
+        code_diff_hash=None,
+        artifact_hash="x" * 64,
+    )
+
+
+def test_upsert_ml_model_row_returns_existing_on_duplicate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """_upsert_ml_model_row returns the existing row without inserting when model_id exists.
+
+    This is the idempotency guard against IntegrityError on re-training an
+    identical model (same content hash → same model_id).
+    """
+    from app.services import ml_service
+
+    sentinel = object()  # the "already registered" row
+    monkeypatch.setattr(ml_service, "get_ml_model", lambda db, mid: sentinel)
+
+    class _NeverWriteDB:
+        def add(self, obj: object) -> None:
+            raise AssertionError("db.add must not be called for an already-registered model")
+
+        def commit(self) -> None:
+            raise AssertionError("db.commit must not be called for an already-registered model")
+
+        def refresh(self, obj: object) -> None:
+            pass
+
+    meta = _make_model_metadata()
+    result = ml_service._upsert_ml_model_row(_NeverWriteDB(), meta)  # type: ignore[arg-type]
+    assert result is sentinel
+
+
+def test_upsert_ml_model_row_inserts_when_new(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """_upsert_ml_model_row inserts and returns the new row when model_id is not registered."""
+    from app.services import ml_service
+
+    monkeypatch.setattr(ml_service, "get_ml_model", lambda db, mid: None)
+
+    inserted: list = []
+
+    class _TrackingDB:
+        def add(self, obj: object) -> None:
+            inserted.append(obj)
+
+        def commit(self) -> None:
+            pass
+
+        def refresh(self, obj: object) -> None:
+            pass
+
+    meta = _make_model_metadata()
+    result = ml_service._upsert_ml_model_row(_TrackingDB(), meta)  # type: ignore[arg-type]
+    assert len(inserted) == 1
+    assert inserted[0] is result

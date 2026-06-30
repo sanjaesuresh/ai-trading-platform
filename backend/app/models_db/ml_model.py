@@ -1,16 +1,16 @@
 """Postgres mirror of a registered ML model's metadata (Phase 4 M4).
 
 One row per trained model, keyed by the content-hash model_id the filesystem
-registry assigns. The columns map 1-to-1 to ``registry.ModelMetadata`` so the API
-can list and filter models without touching the filesystem. Alembic migration
-0005_phase4_ml creates this table.
+registry assigns. The columns mirror the scalar fields of ``registry.ModelMetadata``
+(note: ``feature_columns`` is intentionally not stored — it is derivable from the
+feature spec version). Alembic migration 0005_phase4_ml creates this table.
 """
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, Float, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import JSON
 
@@ -53,5 +53,5 @@ class MLModel(Base):
     artifact_hash: Mapped[str] = mapped_column(String(128), nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(
-        nullable=False, default=lambda: datetime.now(UTC)
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )

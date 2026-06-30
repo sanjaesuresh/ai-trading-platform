@@ -44,6 +44,7 @@ from app.models_db.evaluation_run import EvaluationRun
 from app.models_db.ml_model import MLModel
 from app.schemas.ml import MLBacktestRequest, MLTrainRequest, MLWalkForwardRequest
 from app.services.backtest_service import BacktestRequestError
+from app.services.evaluation_service import sanitize_result_dict
 
 log = get_logger(__name__)
 
@@ -159,10 +160,7 @@ def train_and_register(db: Session, req: MLTrainRequest) -> MLModel:
         model_dir=model_dir,
     )
 
-    row = _metadata_to_orm(metadata)
-    db.add(row)
-    db.commit()
-    db.refresh(row)
+    row = _upsert_ml_model_row(db, metadata)
     log.info(
         "ML model %s registered (symbols=%s, horizon=%d, calibrated=%s).",
         row.model_id, req.symbols, req.horizon, row.calibrated,
@@ -192,6 +190,27 @@ def _build_training_config(req: MLTrainRequest, spec: FeatureLabelSpec) -> Train
         min_selected=req.min_selected,
         min_hold=req.min_hold,
     )
+
+
+def _upsert_ml_model_row(db: Session, metadata: ModelMetadata) -> MLModel:
+    """Insert or return the existing ``MLModel`` row for this content-hash model_id.
+
+    ``model_id`` is a content hash: the same config + data + seed always produce
+    the same hash. ``save_model`` is already idempotent on the filesystem; this
+    makes the DB registration idempotent too, so re-training an identical model
+    does not raise ``IntegrityError`` against the UNIQUE ``model_id`` constraint.
+    """
+    existing = get_ml_model(db, metadata.model_id)
+    if existing is not None:
+        log.info(
+            "ML model %s already registered; returning existing row.", metadata.model_id
+        )
+        return existing
+    row = _metadata_to_orm(metadata)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
 
 
 def _metadata_to_orm(meta: ModelMetadata) -> MLModel:
@@ -266,7 +285,7 @@ def run_ml_walk_forward(db: Session, run: EvaluationRun) -> EvaluationRun:
         seed=req.seed,
         n_config_trials=req.n_config_trials,
     )
-    run.results = result.to_dict()
+    run.results = sanitize_result_dict(result.to_dict())
     run.status = "completed"
     run.finished_at = datetime.now(UTC)
     db.commit()
@@ -328,14 +347,14 @@ def run_ml_backtest(db: Session, run: EvaluationRun) -> EvaluationRun:
     metrics = compute_metrics(
         backtest_result.equity_curve, backtest_result.trades, req.initial_capital
     )
-    from dataclasses import asdict
-    run.results = {
+    from dataclasses import asdict as _asdict
+    run.results = sanitize_result_dict({
         "model_id": req.model_id,
         "symbol": req.symbol,
         "total_return_pct": float(backtest_result.total_return_pct),
-        "metrics": asdict(metrics),
+        "metrics": _asdict(metrics),
         "num_trades": int(len(backtest_result.trades)),
-    }
+    })
     run.status = "completed"
     run.finished_at = datetime.now(UTC)
     db.commit()

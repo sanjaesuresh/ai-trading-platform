@@ -129,8 +129,21 @@ async def enqueue_walk_forward(
 async def enqueue_backtest(
     req: MLBacktestRequest, db: Session = Depends(get_db)
 ) -> MLEvaluationSummary:
-    """Queue a pinned-model ML backtest; poll GET /ml/evaluations/{id}."""
-    run = create_queued_ml_run(req, kind="ml_backtest", db=db)
+    """Queue a pinned-model ML backtest; poll GET /ml/evaluations/{id}.
+
+    Returns 404 immediately if the model_id is not registered, consistent with
+    the evaluation routes which surface request errors at enqueue time (not
+    asynchronously in the worker).
+    """
+    if get_ml_model(db, req.model_id) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"ML model '{req.model_id}' not found.",
+        )
+    try:
+        run = create_queued_ml_run(req, kind="ml_backtest", db=db)
+    except BacktestRequestError as exc:
+        raise _bad_request(exc) from exc
     await _enqueue_or_fail(run, db)
     return MLEvaluationSummary.model_validate(run)
 

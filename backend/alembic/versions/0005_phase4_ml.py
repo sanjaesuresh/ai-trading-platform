@@ -1,8 +1,9 @@
 """Phase 4 ML: ml_models registry table.
 
-Additive only — creates the ``ml_models`` table that mirrors ``registry.ModelMetadata``
-for the API layer. No existing Phase 1–3 table or column is touched; ML evaluation
-runs reuse the existing ``evaluation_runs`` table with the new kind values
+Additive only — creates the ``ml_models`` table that mirrors the scalar fields of
+``registry.ModelMetadata`` for the API layer (``feature_columns`` is intentionally
+not stored). No existing Phase 1–3 table or column is touched; ML evaluation runs
+reuse the existing ``evaluation_runs`` table with the new kind values
 ``"ml_walk_forward"`` and ``"ml_backtest"``, carrying ml params inside the existing
 ``config`` JSON column (no column changes there).
 
@@ -27,7 +28,7 @@ def upgrade() -> None:
     op.create_table(
         "ml_models",
         sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
-        sa.Column("model_id", sa.String(length=64), nullable=False, unique=True),
+        sa.Column("model_id", sa.String(length=64), nullable=False),
         sa.Column("feature_spec_version", sa.String(length=32), nullable=False),
         sa.Column("symbols", sa.JSON(), nullable=False),
         sa.Column("train_start", sa.String(length=64), nullable=False),

@@ -201,6 +201,8 @@ def test_backtest_enqueues_and_returns_queued(monkeypatch) -> None:
         captured["kwargs"] = kwargs
         return "job-bt-1"
 
+    # model_id existence check added in finding #4 fix — stub it to return a model.
+    monkeypatch.setattr(ml_routes, "get_ml_model", lambda db, mid: _FakeMLModel())
     monkeypatch.setattr(ml_routes, "create_queued_ml_run", fake_create)
     monkeypatch.setattr(ml_routes, "enqueue", fake_enqueue)
 
@@ -254,4 +256,26 @@ def test_walk_forward_enqueue_failure_marks_run_failed(monkeypatch) -> None:
 def test_get_unknown_model_404(monkeypatch) -> None:
     monkeypatch.setattr(ml_routes, "get_ml_model", lambda db, mid: None)
     resp = client.get("/ml/models/nonexistent")
+    assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Finding #4 — enqueue backtest with unknown model_id → 404, not 202
+# ---------------------------------------------------------------------------
+
+
+def test_backtest_unknown_model_id_returns_404(monkeypatch) -> None:
+    """POST /ml/evaluations/backtest with an unregistered model_id returns 404 at enqueue.
+
+    The route checks model existence before creating the queued row so the caller
+    gets a clean 4xx immediately rather than a 202 that fails asynchronously in
+    the worker.
+    """
+    monkeypatch.setattr(ml_routes, "get_ml_model", lambda db, mid: None)
+
+    resp = client.post(
+        "/ml/evaluations/backtest",
+        json={"model_id": "nonexistent_model", "symbol": "SPY"},
+    )
+
     assert resp.status_code == 404

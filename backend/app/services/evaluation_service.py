@@ -104,6 +104,27 @@ def _finite(value: float) -> float:
     return _PROFIT_FACTOR_INF if value > 0 else 0.0
 
 
+def sanitize_result_dict(obj: Any) -> Any:
+    """Recursively replace non-finite floats in *obj* with JSON-safe stand-ins.
+
+    Recurses through nested dicts and lists; all other values are returned
+    unchanged. Use before persisting a results payload to a JSON column —
+    Postgres rejects NaN and Infinity tokens. Non-finite floats are mapped
+    using the same convention as ``_finite``: +inf → large finite sentinel,
+    NaN / -inf → 0.0.
+
+    Used by both ``evaluation_service`` and ``ml_service`` so the convention
+    stays in one place.
+    """
+    if isinstance(obj, float):
+        return _finite(obj)
+    if isinstance(obj, dict):
+        return {k: sanitize_result_dict(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [sanitize_result_dict(v) for v in obj]
+    return obj
+
+
 def _metrics_to_dict(metrics: Metrics) -> dict[str, Any]:
     """Serialize a Metrics dataclass to a JSON-safe dict (no inf/nan)."""
     data = asdict(metrics)
