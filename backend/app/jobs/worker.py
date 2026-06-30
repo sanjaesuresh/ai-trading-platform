@@ -17,6 +17,7 @@ from app.jobs.queue import redis_settings
 from app.jobs.tasks import (
     evaluation_task,
     ingest_task,
+    ml_task,
     paper_reconcile_cron,
     paper_run_task,
     paper_submit_cron,
@@ -44,7 +45,7 @@ class WorkerSettings:
 
     functions = [
         ingest_task, evaluation_task, paper_run_task,
-        paper_submit_cron, paper_reconcile_cron,
+        paper_submit_cron, paper_reconcile_cron, ml_task,
     ]
     cron_jobs = [
         cron(

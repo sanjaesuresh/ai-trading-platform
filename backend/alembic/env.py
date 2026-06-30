@@ -11,6 +11,7 @@ from app.models_db import (  # noqa: F401
     evaluation_run,
     ingestion_run,
     market_data,
+    ml_model,
     paper_trading,
     trade,
 )

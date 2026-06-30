@@ -16,6 +16,7 @@ from app.api.routes import (
     evaluation,
     health,
     ingestion,
+    ml,
     paper_trading,
     strategies,
 )
@@ -55,6 +56,7 @@ def create_app() -> FastAPI:
     app.include_router(evaluation.router)
     app.include_router(ingestion.router)
     app.include_router(paper_trading.router)
+    app.include_router(ml.router)
     return app
 
 

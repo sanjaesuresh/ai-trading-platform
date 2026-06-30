@@ -29,6 +29,9 @@ from app.services.evaluation_service import (
     mark_failed,
     mark_running,
 )
+from app.services.ml_service import execute_ml_run
+from app.services.ml_service import mark_failed as ml_mark_failed
+from app.services.ml_service import mark_running as ml_mark_running
 from app.services.paper_trading_service import (
     get_deployment,
     list_deployments,
@@ -184,8 +187,36 @@ async def paper_reconcile_cron(ctx: dict[str, Any]) -> dict[str, Any]:
     return await paper_run_task(ctx, phase="reconcile", day_offset=1)
 
 
+async def ml_task(
+    ctx: dict[str, Any], *, evaluation_run_id: int
+) -> dict[str, Any]:
+    """Run a queued ML evaluation row: queued → running → completed/failed.
+
+    Mirrors ``evaluation_task``: loads the ``EvaluationRun`` row the enqueue
+    endpoint created, flips it to ``running``, dispatches to the matching ML
+    pipeline (walk-forward or pinned backtest) via ``execute_ml_run``, then marks
+    it ``completed``. On error the row is marked ``failed`` and the exception is
+    re-raised so the worker sees the failure.
+    """
+    session = SessionLocal()
+    try:
+        run = session.get(EvaluationRun, evaluation_run_id)
+        if run is None:
+            raise ValueError(f"EvaluationRun {evaluation_run_id} not found.")
+        ml_mark_running(session, run)
+        try:
+            await asyncio.to_thread(execute_ml_run, session, run)
+        except Exception as exc:
+            ml_mark_failed(session, run, str(exc))
+            raise
+        return {"evaluation_run_id": run.id, "status": run.status}
+    finally:
+        session.close()
+
+
 # Task names, derived from the function objects so the enqueue side and the
 # worker registry can never drift apart. Routes enqueue by these constants.
 INGEST_TASK_NAME = ingest_task.__name__
 EVALUATION_TASK_NAME = evaluation_task.__name__
 PAPER_RUN_TASK_NAME = paper_run_task.__name__
+ML_TASK_NAME = ml_task.__name__
