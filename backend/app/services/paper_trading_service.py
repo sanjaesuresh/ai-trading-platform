@@ -64,11 +64,27 @@ from app.models_db.paper_trading import (
     SystemFlag,
 )
 from app.strategies.base_strategy import Position
+from app.strategies.ml_classifier import MLClassifierStrategy
 from app.strategies.registry import resolve_strategy
 
 log = get_logger(__name__)
 
 _GLOBAL_KILL_FLAG = "global_kill"
+
+
+def _should_warn_ml_min_hold(strategy: object) -> bool:
+    """True when ``strategy`` is an ML classifier whose signal-driven exits will
+    silently never fire in the live daily cycle.
+
+    Each call to ``plan_cycle`` resolves a FRESH strategy instance per symbol, so
+    ``MLClassifierStrategy._bars_held`` resets to ≤1 on every cycle.  With
+    ``min_hold > 1`` (the default ties to the ~5-day label horizon), the exit gate
+    ``_bars_held >= min_hold`` is permanently False live — exits occur only via
+    stop-loss, take-profit, or max-drawdown until per-symbol holding state is
+    persisted across cycles (a gated follow-up).
+    """
+    return isinstance(strategy, MLClassifierStrategy) and strategy.min_hold > 1
+
 
 # PortfolioConfig knobs allowed in the deployment ``config`` blob.
 _CONFIG_FIELDS = {
@@ -217,6 +233,7 @@ def plan_cycle(
 
     contexts = {}
     marks: dict[str, float] = {}
+    _warned_ml_hold = False  # emit the min-hold gap warning at most once per cycle
     for sym in symbols:
         frame = frames[sym]
         idx = _decision_index(frame, trading_day)
@@ -227,8 +244,27 @@ def plan_cycle(
         # Resolve a FRESH strategy instance per symbol so a single-run stateful
         # strategy (e.g. the ML classifier, which carries ``_bars_held``) gets an
         # isolated counter and one symbol's state cannot bleed into another's
-        # signal. The stateless rule strategies are unaffected (identical orders).
+        # signal.  The stateless rule strategies are unaffected (identical orders).
+        #
+        # LIMITATION — ML min-hold gap: because a fresh instance is created every
+        # daily cycle, ``_bars_held`` resets to ≤1 each cycle.  With
+        # ``min_hold > 1`` the exit gate (``_bars_held >= min_hold``) is
+        # permanently False live, so signal-driven exits will NOT fire until
+        # per-symbol holding state is persisted across daily cycles.  That
+        # persistence is a gated follow-up; until then, ML live deployments exit
+        # only via stop-loss / take-profit / max-drawdown, never on the model
+        # signal alone.  The warning below makes this loud rather than silent.
         strategy = resolve_strategy(spec.strategy_name, spec.params)
+        if not _warned_ml_hold and _should_warn_ml_min_hold(strategy):
+            log.warning(
+                "ML classifier with min_hold=%d deployed live: signal-driven exits "
+                "will NOT fire across daily cycles until per-symbol holding state is "
+                "persisted across cycles. Exits occur only via stop-loss / "
+                "take-profit / max-drawdown. ML paper deployment is gated on that "
+                "follow-up (see docs/phase-4-plan.md).",
+                getattr(strategy, "min_hold", 0),
+            )
+            _warned_ml_hold = True
         decision = strategy.generate_signal(
             row, Position(quantity=pos.quantity, entry_price=pos.entry_price)
         )

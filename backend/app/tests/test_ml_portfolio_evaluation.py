@@ -28,6 +28,7 @@ from app.ml.portfolio_evaluation import (
     BASE_BUY_AND_HOLD_BASKET,
     BASE_RULE_PORTFOLIO,
     BASE_SINGLE_POSITION,
+    _single_position_basket,
     evaluate_ml_portfolio_walk_forward,
 )
 from app.ml.training import TrainingConfig
@@ -184,3 +185,53 @@ def test_symbols_not_in_frames_raises() -> None:
     frames = _frames()
     with pytest.raises(ValueError, match="not in frames"):
         _evaluate(frames, symbols=["SPY", "MISSING"])
+
+
+# --- Finding #2: capacity caveat in to_dict() --------------------------------
+
+
+def test_to_dict_contains_capacity_caveat() -> None:
+    """``to_dict()`` must include a non-empty ``caveats`` list that mentions
+    the simulation / AUM / slippage assumptions so a reader of the JSON verdict
+    cannot miss the cost-model honesty note."""
+    result = _evaluate(_frames())
+    payload = result.to_dict()
+    assert "caveats" in payload, "to_dict() must contain a 'caveats' key."
+    caveats = payload["caveats"]
+    assert isinstance(caveats, list), "'caveats' must be a list."
+    assert len(caveats) >= 1, "Expected at least one caveat string."
+    combined = " ".join(caveats).lower()
+    assert "simulated" in combined or "aum" in combined or "slippage" in combined, (
+        "Expected caveats to mention simulation assumptions (simulated/AUM/slippage)."
+    )
+
+
+# --- Finding #3: _single_position_basket robust to mismatched calendars ------
+
+
+def test_single_position_basket_mismatched_calendars_does_not_raise() -> None:
+    """Summing per-symbol equity curves must not KeyError when the first-processed
+    symbol (alphabetically earliest) is missing a bar that a later symbol has.
+
+    Replicates the edge case: AAPL (sorted first) has one fewer bar than SPY, so
+    when SPY's equity curve is summed into the combined dict keyed by AAPL's
+    timestamps, SPY's extra bar would previously raise a KeyError.
+    """
+    from app.strategies.trend_following import TrendFollowingStrategy
+
+    base = _featured(30, seed=7)
+    # Build SPY with all 30 bars; drop bar index 15 from AAPL so AAPL (sorted
+    # first) is missing a timestamp that SPY has — the exact failure mode.
+    spy_frame = base.copy()
+    aapl_frame = base.drop(index=15).reset_index(drop=True)
+    # Ensure timestamps differ: offset SPY by one business day so their bars are
+    # not identical — this guarantees SPY has bar 15 which AAPL lost.
+    frames = {"AAPL": aapl_frame, "SPY": spy_frame}
+
+    config = _portfolio_config()
+    curve, trades = _single_position_basket(frames, lambda sym: TrendFollowingStrategy(), config)
+    assert len(curve) > 0, "Expected a non-empty equity curve from the mismatched basket."
+    # Equity must be positive and finite throughout.
+    for ep in curve:
+        assert ep.equity > 0.0
+        assert math.isfinite(ep.equity)

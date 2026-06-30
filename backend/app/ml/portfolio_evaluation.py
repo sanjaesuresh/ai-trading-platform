@@ -86,6 +86,20 @@ BASE_SINGLE_POSITION = "single_position_equal_weight"
 
 _PERIODS_PER_YEAR = 252.0
 
+# Capacity / cost-model caveats appended to every result so a reader of the
+# portfolio verdict cannot miss the simulation assumptions.  Consistent with the
+# project's simulated-only honesty policy (CLAUDE.md).
+# NOTE: a cost-sensitivity sweep at 1×/2×/3× fees+slippage is a recommended
+# follow-up for both ML evaluation paths (M3 single-symbol and M6 portfolio) —
+# a turnover-driven edge can clear 1× costs and die at 2×.
+_CAPACITY_CAVEATS: list[str] = [
+    "Results are simulated at AUM = initial_capital; slippage is a flat bps model "
+    "with no market-impact, ADV, or participation-rate term. Results are valid only "
+    "at that AUM and trade-size-to-ADV.",
+    "Simultaneous multi-symbol fills at the bar open are assumed; real execution "
+    "may face queue priority, partial fills, or price impact across symbols.",
+]
+
 
 # ---------------------------------------------------------------------------
 # Result types (frozen, serializable)
@@ -198,6 +212,7 @@ class MLPortfolioEvaluationResult:
     significance: PortfolioSignificance
     beats_all_baselines: bool
     reasons: list[str] = field(default_factory=list)
+    caveats: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -213,6 +228,7 @@ class MLPortfolioEvaluationResult:
             "significance": self.significance.to_dict(),
             "beats_all_baselines": bool(self.beats_all_baselines),
             "reasons": list(self.reasons),
+            "caveats": list(self.caveats),
         }
 
 
@@ -346,11 +362,21 @@ def _single_position_basket(
             }
         else:
             for p in res.equity_curve:
-                agg = combined[p.timestamp]
-                combined[p.timestamp] = EquityPoint(
-                    p.timestamp, agg.equity + p.equity, agg.cash + p.cash,
-                    agg.position_value + p.position_value,
-                )
+                # Guard against mismatched trading calendars: if the first symbol
+                # did not have a bar on this timestamp, start a new entry rather
+                # than KeyError-ing.  Symbols may have slightly different holiday
+                # schedules in the OOS window, so union is correct — we sum
+                # whatever equity is available on each day.
+                prev = combined.get(p.timestamp)
+                if prev is None:
+                    combined[p.timestamp] = EquityPoint(
+                        p.timestamp, p.equity, p.cash, p.position_value
+                    )
+                else:
+                    combined[p.timestamp] = EquityPoint(
+                        p.timestamp, prev.equity + p.equity, prev.cash + p.cash,
+                        prev.position_value + p.position_value,
+                    )
     curve = [combined[ts] for ts in sorted(combined)] if combined else []
     return curve, pooled_trades
 
@@ -689,6 +715,7 @@ def _aggregate(
         significance=significance,
         beats_all_baselines=beats_all,
         reasons=reasons,
+        caveats=list(_CAPACITY_CAVEATS),
     )
 
 

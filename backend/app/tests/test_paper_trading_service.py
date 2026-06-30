@@ -20,6 +20,7 @@ from app.brokers.fake import FakeBroker
 from app.services import paper_trading_service as svc
 from app.services.paper_trading_service import (
     DeploymentSpec,
+    _should_warn_ml_min_hold,
     attribute_fills,
     build_portfolio_config,
     deterministic_client_id,
@@ -35,6 +36,7 @@ from app.strategies.base_strategy import (
     StrategyDecision,
     StrategySignal,
 )
+from app.strategies.ml_classifier import MLClassifierStrategy
 
 _DAY = date(2023, 1, 10)
 
@@ -271,3 +273,77 @@ def test_portfolio_snapshot_values_from_broker_truth() -> None:
     assert values["num_positions"] == 1
     # Drawdown vs the 120k peak: (120k-100k)/120k = 16.67%.
     assert values["drawdown_pct"] == pytest.approx(100 * 20_000 / 120_000)
+
+
+# --- ML min-hold gap warning (Finding #1) -----------------------------------
+
+
+class _FakeMLStrategy(MLClassifierStrategy):
+    """Minimal MLClassifierStrategy stub that bypasses model loading.
+
+    Used only to test the isinstance-based ``_should_warn_ml_min_hold`` check
+    and the warning path in ``plan_cycle`` without requiring a real trained model
+    on disk.  ``generate_signal`` is overridden to avoid calling ``self._model``.
+    """
+
+    def __init__(self, min_hold: int = 3) -> None:  # no super().__init__()
+        self.min_hold = min_hold
+        self._bars_held = 0
+        self.model_id = "(test)"
+        self.enter_threshold = 0.6
+        self.exit_threshold = 0.4
+        self._cols: list[str] = []
+        self._model = None  # type: ignore[assignment]
+
+    def generate_signal(self, row: pd.Series, current_position: Position) -> StrategyDecision:
+        return StrategyDecision(action=StrategySignal.BUY, reason="fake_ml")
+
+
+def test_should_warn_ml_min_hold_fires_for_ml_gt1_not_for_rule() -> None:
+    """Unit-test the helper that gates the warning: True for ML(min_hold>1), False otherwise."""
+    assert _should_warn_ml_min_hold(_FakeMLStrategy(min_hold=3)) is True
+    assert _should_warn_ml_min_hold(_FakeMLStrategy(min_hold=5)) is True
+    # min_hold=0 or 1 does not trip the gate.
+    assert _should_warn_ml_min_hold(_FakeMLStrategy(min_hold=1)) is False
+    assert _should_warn_ml_min_hold(_FakeMLStrategy(min_hold=0)) is False
+    # A plain rule strategy (not an ML classifier) never triggers the warning.
+    assert _should_warn_ml_min_hold(_Stub(StrategySignal.BUY)) is False
+
+
+def test_plan_cycle_warns_for_ml_min_hold_not_for_rule(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """``plan_cycle`` emits a WARNING for ML(min_hold>1) and not for a rule strategy."""
+    import logging
+
+    broker = FakeBroker(cash=100_000.0)
+    frames = _flat_frames(["AAA"])
+    spec = _spec(["AAA"])
+
+    # ML path: warning must appear.
+    monkeypatch.setattr(
+        svc, "resolve_strategy",
+        lambda name, params: _FakeMLStrategy(min_hold=3),
+    )
+    with caplog.at_level(logging.WARNING, logger="app.services.paper_trading_service"):
+        plan_cycle(broker, spec, frames, _DAY, peak_equity=100_000.0)
+
+    assert any(
+        "min_hold" in r.message and r.levelno == logging.WARNING
+        for r in caplog.records
+    ), "Expected a WARNING about ML min-hold gap but none was emitted."
+
+    # Rule path: no min-hold warning.
+    caplog.clear()
+    monkeypatch.setattr(
+        svc, "resolve_strategy",
+        lambda name, params: _Stub(StrategySignal.BUY),
+    )
+    with caplog.at_level(logging.WARNING, logger="app.services.paper_trading_service"):
+        plan_cycle(broker, spec, frames, _DAY, peak_equity=100_000.0)
+
+    assert not any(
+        "min_hold" in r.message and r.levelno == logging.WARNING
+        for r in caplog.records
+    ), "Unexpected ML min-hold WARNING emitted for a plain rule strategy."
