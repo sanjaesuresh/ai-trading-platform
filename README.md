@@ -179,6 +179,51 @@ a distribution in the comparison view. The larger paper↔live gap (no dividends
 market impact, latency, or queue position in paper) is documented as known and
 unmodeled. Still simulated only — not financial advice.
 
+## Classical machine-learning strategies (Phase 4)
+
+Every strategy above is a hand-written rule. Phase 4 adds the first *learned*
+strategy: a LightGBM classifier that estimates the probability a symbol's
+open-to-open return over a 5-day horizon is positive, then goes long when that
+calibrated probability clears an enter threshold and flat below an exit threshold.
+It is just another `BaseStrategy` to the engine — backtested and paper-tradeable by
+exactly the same paths as a rule.
+
+The headline deliverable is **rigor, not a market predictor**. ML on daily bars is
+the easiest place to fool yourself, so the pipeline is built to be believed:
+
+- **Leakage-safe by construction.** A point-in-time feature/label builder (causal,
+  per-symbol-trailing features; an execution-matched open-to-open label) and a
+  date-keyed, **purged-and-embargoed** walk-forward splitter that applies the same
+  purge + embargo to the inner train/validation fold. Overlapping labels are
+  down-weighted by López de Prado sample uniqueness.
+- **Honest, cost-aware verdict.** Per split it trains a fresh model on in-sample and
+  scores it out-of-sample net of fees against four baselines — buy-and-hold, the
+  rule strategy, a Monte-Carlo random ensemble at the model's own trade frequency,
+  and a logistic-regression floor — and reports a **deflated/probabilistic Sharpe**,
+  **PBO via CSCV**, turnover, and per-split distribution. The result is one of three
+  verdicts: **pass**, **fail**, or **inconclusive / indistinguishable from noise**
+  (the expected outcome on thin daily data, reported as forcefully as a fail).
+  Classification metrics (AUC/Brier) are diagnostics only, never the verdict.
+- **Reproducible.** Trained models live in a registry: the joblib artifact on disk
+  plus metadata pinning the feature spec, training window, hyperparameters, seed,
+  thresholds, validation metrics, and the code version (including dirty-tree state).
+
+```bash
+# Train + register a model, then run an honest walk-forward evaluation:
+curl -s localhost:8000/ml/models -X POST -H 'content-type: application/json' \
+  -d '{"symbols":["SPY","AAPL","MSFT"], "eval_symbol":"SPY"}'
+curl -s localhost:8000/ml/evaluations/walk-forward -X POST -H 'content-type: application/json' \
+  -d '{"symbols":["SPY","AAPL","MSFT"], "eval_symbol":"SPY"}'
+# Inspect: GET /ml/models, GET /ml/models/{id}, GET /ml/evaluations/{id}
+```
+
+The **ML** section of the web UI lists registered models with their provenance, runs
+the walk-forward, and renders the verdict, the model-vs-baseline comparison, the
+per-split distribution, and the significance block — every surface carrying the
+strongest simulated-only / overfitting-risk framing. An "AI prediction" is the most
+misreadable surface in the app, so nothing implies real, guaranteed, or expected
+returns. Still simulated only — not financial advice.
+
 ## Backend tests (no database needed)
 
 The five core test modules are pure logic:
