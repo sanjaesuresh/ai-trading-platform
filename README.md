@@ -48,6 +48,13 @@ This starts:
 
 Open http://localhost:5173, then use the dashboard to run the sample backtest.
 
+The backend mounts the local `backend/` source and runs `uvicorn --reload`, so
+editing backend code restarts the API automatically — no image rebuild. After
+the first build, `docker compose up -d backend` is enough to pick up changes.
+(The ARQ **worker** still bakes its code into the image; rebuild it with
+`docker compose up -d --build worker` after changing job code. This live-mount +
+reload setup is for local dev only.)
+
 ## Run a sample backtest (API)
 
 ```bash
