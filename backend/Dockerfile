@@ -5,6 +5,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# System runtime libs. LightGBM (Phase 4 ML) links against OpenMP at import time,
+# so libgomp1 must be present or `import lightgbm` fails with a missing libgomp.so.1.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install dependencies first for better layer caching.
 COPY pyproject.toml README.md ./
 COPY app ./app
