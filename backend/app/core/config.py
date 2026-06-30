@@ -65,6 +65,15 @@ class Settings(BaseSettings):
     # never committed. Default: the repo-root models/ directory, relative to this file.
     model_dir: str = str((Path(__file__).resolve().parents[3] / "models").resolve())
 
+    # Anthropic LLM annotation (Phase 5). No literal default: an empty key runs the
+    # annotation layer in the credential-free, no-network stub mode that CI uses.
+    # Never commit a real key — set $ANTHROPIC_API_KEY. The model tier is an explicit
+    # config choice (never a silent upgrade); Haiku is the cheapest tier and the right
+    # default for short-text classification. Batch API + content-hash caching keep
+    # spend down; cost is still charged into the ablation at real billed rates.
+    anthropic_api_key: str = ""
+    annotation_model: str = "claude-haiku-4-5"
+
     @property
     def allowed_data_path(self) -> Path:
         return Path(self.allowed_data_dir).resolve()
