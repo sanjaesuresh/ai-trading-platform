@@ -316,3 +316,79 @@ def inner_validation_split(
         embargo=embargo,
     )
     return kept_inner, np.flatnonzero(val_mask)
+
+
+def purged_time_folds(
+    panel: pd.DataFrame,
+    idx: np.ndarray,
+    fractions: list[float],
+    *,
+    horizon: int,
+    embargo: int | None = None,
+    decision_col: str = "decision_ts",
+    label_end_col: str = "label_end_ts",
+) -> list[np.ndarray]:
+    """Partition ``idx`` into time-ordered folds by distinct date, with purge+embargo.
+
+    Used to give the in-sample window *distinct sub-slices by purpose* (plan 3.2):
+    a fit fold, a calibration/early-stopping fold, and a threshold-selection fold, so
+    the thresholds are never chosen on the rows the calibrator was just fit on. Each
+    earlier fold is purged and embargoed against the start date of the next fold (its
+    labels cannot reach forward into a later, more-held-out fold). The final fold is
+    not purged. ``fractions`` are by distinct date and need not sum to exactly 1
+    (the last fold takes the remainder). Returns one index array per fraction; folds
+    can be empty when there are too few dates.
+    """
+    if not fractions:
+        raise ValueError("fractions must be non-empty.")
+    if embargo is None:
+        embargo = horizon
+
+    idx = np.asarray(idx)
+    k = len(fractions)
+    if idx.size == 0:
+        return [idx.copy() for _ in range(k)]
+
+    decision_ts = panel[decision_col]
+    label_end_ts = panel[label_end_col]
+    decision_np = decision_ts.to_numpy()
+    in_idx = np.zeros(len(panel), dtype=bool)
+    in_idx[idx] = True
+
+    dates = sorted(pd.to_datetime(decision_np[idx]).unique())
+    dates = [pd.Timestamp(d) for d in dates]
+    n = len(dates)
+
+    # Cumulative date-position boundaries; clamp and make non-decreasing.
+    cum = np.cumsum(fractions)
+    bounds = [min(n, int(round(c * n))) for c in cum]
+    bounds[-1] = n
+    for i in range(1, k):
+        bounds[i] = max(bounds[i], bounds[i - 1])
+
+    folds: list[np.ndarray] = []
+    lo = 0
+    for i in range(k):
+        hi = bounds[i]
+        if lo >= hi:
+            folds.append(np.empty(0, dtype=idx.dtype))
+            lo = hi
+            continue
+        fold_lo_date = np.datetime64(dates[lo])
+        fold_hi_date = np.datetime64(dates[hi - 1])
+        fold_mask = in_idx & (decision_np >= fold_lo_date) & (decision_np <= fold_hi_date)
+        if i < k - 1 and hi < n:
+            next_start = dates[hi]
+            kept, _, _ = _purge_embargo(
+                decision_ts,
+                label_end_ts,
+                fold_mask,
+                test_start=next_start,
+                distinct_dates=dates,
+                embargo=embargo,
+            )
+            folds.append(kept)
+        else:
+            folds.append(np.flatnonzero(fold_mask))
+        lo = hi
+    return folds

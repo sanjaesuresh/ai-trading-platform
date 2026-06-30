@@ -91,6 +91,7 @@ COL_LABEL_START_TS = "label_start_ts"
 COL_LABEL_END_TS = "label_end_ts"
 COL_LABEL = "label"
 COL_WEIGHT = "weight"
+COL_FWD_RETURN = "fwd_return"
 
 
 @dataclass(frozen=True)
@@ -172,9 +173,10 @@ def build_labels(
     - ``NaN`` if ``|forward return| <= deadband`` (neutral) or the row is unlabelable
       (the final ``H+1`` rows, whose exit open does not exist).
 
-    Columns: ``label`` (float, with NaN), ``label_start_ts`` (= timestamp[N+1]),
-    ``label_end_ts`` (= timestamp[N+1+H]). The ``_ts`` columns carry the holding
-    interval the purge/embargo splitter needs.
+    Columns: ``label`` (float, with NaN), ``fwd_return`` (the open[N+1]->open[N+1+H]
+    return magnitude, for cost-aware threshold selection and trading metrics),
+    ``label_start_ts`` (= timestamp[N+1]), ``label_end_ts`` (= timestamp[N+1+H]). The
+    ``_ts`` columns carry the holding interval the purge/embargo splitter needs.
     """
     if horizon < 1:
         raise ValueError(f"horizon must be >= 1, got {horizon}.")
@@ -196,6 +198,7 @@ def build_labels(
     return pd.DataFrame(
         {
             COL_LABEL: label,
+            COL_FWD_RETURN: forward_return,
             COL_LABEL_START_TS: ts.shift(-1),
             COL_LABEL_END_TS: ts.shift(-(1 + horizon)),
         }
@@ -298,6 +301,7 @@ def build_symbol_panel(
             COL_LABEL_START_TS: labels.loc[keep, COL_LABEL_START_TS].to_numpy(),
             COL_LABEL_END_TS: labels.loc[keep, COL_LABEL_END_TS].to_numpy(),
             COL_LABEL: labels.loc[keep, COL_LABEL].to_numpy(),
+            COL_FWD_RETURN: labels.loc[keep, COL_FWD_RETURN].to_numpy(),
             COL_WEIGHT: weights,
         }
     )
@@ -349,6 +353,7 @@ def build_pooled_panel(
         COL_LABEL_START_TS,
         COL_LABEL_END_TS,
         COL_LABEL,
+        COL_FWD_RETURN,
         COL_WEIGHT,
         *spec.feature_columns,
     ]

@@ -20,6 +20,7 @@ from pydantic import BaseModel, ValidationError
 
 from app.strategies.base_strategy import BaseStrategy
 from app.strategies.mean_reversion import MeanReversionParams, MeanReversionStrategy
+from app.strategies.ml_classifier import MLClassifierParams, MLClassifierStrategy
 from app.strategies.trend_following import TrendFollowingParams, TrendFollowingStrategy
 
 # Default when a request does not name a strategy — keeps every existing caller
@@ -44,6 +45,7 @@ class StrategyEntry:
 _REGISTRY: dict[str, StrategyEntry] = {
     "trend_following": StrategyEntry(TrendFollowingStrategy, TrendFollowingParams),
     "mean_reversion": StrategyEntry(MeanReversionStrategy, MeanReversionParams),
+    "ml_classifier": StrategyEntry(MLClassifierStrategy, MLClassifierParams),
 }
 
 

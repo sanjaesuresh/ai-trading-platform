@@ -61,9 +61,17 @@ class Settings(BaseSettings):
     alpaca_api_key: str = ""
     alpaca_secret_key: str = ""
 
+    # Directory for trained ML model artifacts (Phase 4). Gitignored — artifacts are
+    # never committed. Default: the repo-root models/ directory, relative to this file.
+    model_dir: str = str((Path(__file__).resolve().parents[3] / "models").resolve())
+
     @property
     def allowed_data_path(self) -> Path:
         return Path(self.allowed_data_dir).resolve()
+
+    @property
+    def model_path(self) -> Path:
+        return Path(self.model_dir).resolve()
 
 
 @lru_cache

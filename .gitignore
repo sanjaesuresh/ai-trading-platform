@@ -18,6 +18,9 @@ env/
 .coverage
 htmlcov/
 
+# Trained ML model artifacts (Phase 4) — never committed
+models/
+
 # Node / frontend
 node_modules/
 frontend/dist/
