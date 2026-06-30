@@ -38,6 +38,9 @@ services:
 
   backend:
     build: ./backend
+    # Hot-reload for local dev: source is mounted live (below) and uvicorn
+    # watches it. No image rebuild needed when you edit app code.
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-trading_bot}:${POSTGRES_PASSWORD:-trading_bot}@db:5432/${POSTGRES_DB:-trading_bot}
       REDIS_URL: redis://redis:6379/0
@@ -53,6 +56,9 @@ services:
     ports:
       - "8000:8000"
     volumes:
+      # Mount the backend source so uvicorn --reload sees edits live (deps are
+      # installed at image level, so they survive this overlay).
+      - ./backend:/app
       # The sample data lives at the repo root; mount it read-only for the loader.
       - ./data:/app/data:ro
     depends_on:
