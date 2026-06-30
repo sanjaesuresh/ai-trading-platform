@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { listIngestionRuns, triggerIngestion } from '../api/ingestion'
 import type { IngestionRunSummary } from '../types/ingestion'
 import { RunStatusBadge } from '../components/RunStatusBadge'
-import { PageHeader, SectionHeader, Field, inputClass, Table, Th, Td } from '../components/ui'
+import { PageIntro, SectionHeader, Field, inputClass, Table, Th, Td, Term } from '../components/ui'
 import { usePolling } from '../hooks/usePolling'
 import { formatDate } from '../utils/format'
 import { extractMessage } from '../utils/errors'
@@ -71,10 +71,13 @@ export default function Ingestion() {
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        title="Data Ingestion"
-        subtitle="Trigger a market-data backfill or incremental update, then watch the audit trail as each symbol is fetched and written. Simulated research tool — not financial advice."
-      />
+      <PageIntro title="Get price data" icon="📥" eyebrow="Data">
+        Strategies need history to run on. Here you pull price data for the symbols
+        you care about — a <Term id="backfill">backfill</Term> grabs a long stretch
+        of history at once, while an incremental update just adds the newest days.
+        Every <Term id="ingestion">fetch</Term> is quality-checked and logged in the
+        table below. Simulated research tool — not financial advice.
+      </PageIntro>
 
       <section aria-labelledby="trigger-heading">
         <SectionHeader
@@ -84,7 +87,7 @@ export default function Ingestion() {
         />
         <form
           onSubmit={(e) => void handleTrigger(e)}
-          className="bg-zinc-900 border border-zinc-800 rounded p-5 space-y-4"
+          className="bg-surface border border-hairline rounded p-5 space-y-4"
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field
@@ -124,16 +127,16 @@ export default function Ingestion() {
               type="submit"
               disabled={triggering}
               aria-busy={triggering}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-amber-400 text-zinc-950 text-sm font-semibold rounded transition-colors hover:bg-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-canvas text-sm font-semibold rounded transition-colors hover:bg-accent-bright disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {triggering ? 'Queuing…' : 'Run Ingestion'}
             </button>
             {triggerMsg && (
-              <p role="status" className="text-sm text-emerald-400">{triggerMsg}</p>
+              <p role="status" className="text-sm text-positive">{triggerMsg}</p>
             )}
           </div>
           {triggerErr !== null && (
-            <p role="alert" className="text-sm text-rose-400">{triggerErr}</p>
+            <p role="alert" className="text-sm text-negative">{triggerErr}</p>
           )}
         </form>
       </section>
@@ -145,27 +148,27 @@ export default function Ingestion() {
           subtitle="Every ingest, newest first — rows fetched from the provider vs. rows actually written after de-duplication and quality checks."
           right={
             list.length > 0 ? (
-              <span className="font-mono text-xs text-zinc-500">{list.length} runs</span>
+              <span className="font-mono text-xs text-ink-subtle">{list.length} runs</span>
             ) : undefined
           }
         />
         {loading && data === null ? (
-          <div className="bg-zinc-900 border border-zinc-800 rounded p-8 text-center motion-safe:animate-pulse" aria-busy="true">
-            <p className="text-sm text-zinc-500">Loading ingestion history…</p>
+          <div className="bg-surface border border-hairline rounded p-8 text-center motion-safe:animate-pulse" aria-busy="true">
+            <p className="text-sm text-ink-subtle">Loading ingestion history…</p>
           </div>
         ) : error ? (
-          <div className="bg-zinc-900 border border-zinc-800 rounded p-5">
-            <p role="alert" className="text-sm text-rose-400">{extractMessage(error)}</p>
+          <div className="bg-surface border border-hairline rounded p-5">
+            <p role="alert" className="text-sm text-negative">{extractMessage(error)}</p>
           </div>
         ) : list.length === 0 ? (
-          <div className="bg-zinc-900 border border-zinc-800 rounded p-8 text-center">
-            <p className="text-sm text-zinc-500">No ingestion runs yet. Trigger one above.</p>
+          <div className="bg-surface border border-hairline rounded p-8 text-center">
+            <p className="text-sm text-ink-subtle">No ingestion runs yet. Trigger one above.</p>
           </div>
         ) : (
-          <div className="bg-zinc-900 border border-zinc-800 rounded px-4 py-3">
+          <div className="bg-surface border border-hairline rounded px-4 py-3">
             <Table>
               <thead>
-                <tr className="border-b border-zinc-800">
+                <tr className="border-b border-hairline">
                   <Th>ID</Th>
                   <Th>Provider</Th>
                   <Th>Symbol</Th>
@@ -177,25 +180,25 @@ export default function Ingestion() {
                   <Th align="right">Created</Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/60">
+              <tbody className="divide-y divide-hairline/60">
                 {list.map((r) => (
-                  <tr key={r.id} className="align-top hover:bg-zinc-800/30 transition-colors">
-                    <Td mono className="text-zinc-400">#{r.id}</Td>
-                    <Td className="text-zinc-400">{r.provider}</Td>
-                    <Td mono className="text-zinc-50">{r.symbol}</Td>
-                    <Td mono className="text-zinc-500">{rangeLabel(r)}</Td>
-                    <Td mono align="right" className="text-zinc-400">{r.rows_fetched ?? '—'}</Td>
-                    <Td mono align="right" className="text-zinc-200">{r.rows_written ?? '—'}</Td>
-                    <Td mono align="right" className="text-zinc-500">{durationLabel(r)}</Td>
+                  <tr key={r.id} className="align-top hover:bg-raised/30 transition-colors">
+                    <Td mono className="text-ink-muted">#{r.id}</Td>
+                    <Td className="text-ink-muted">{r.provider}</Td>
+                    <Td mono className="text-ink">{r.symbol}</Td>
+                    <Td mono className="text-ink-subtle">{rangeLabel(r)}</Td>
+                    <Td mono align="right" className="text-ink-muted">{r.rows_fetched ?? '—'}</Td>
+                    <Td mono align="right" className="text-ink">{r.rows_written ?? '—'}</Td>
+                    <Td mono align="right" className="text-ink-subtle">{durationLabel(r)}</Td>
                     <Td>
                       <RunStatusBadge status={r.status} />
                       {r.error && (
-                        <p className="text-xs text-rose-400 mt-1 max-w-xs" title={r.error}>
+                        <p className="text-xs text-negative mt-1 max-w-xs" title={r.error}>
                           {r.error}
                         </p>
                       )}
                     </Td>
-                    <Td mono align="right" className="text-zinc-500">{formatDate(r.created_at)}</Td>
+                    <Td mono align="right" className="text-ink-subtle">{formatDate(r.created_at)}</Td>
                   </tr>
                 ))}
               </tbody>

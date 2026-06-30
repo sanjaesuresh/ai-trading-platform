@@ -13,6 +13,7 @@ import { MLDisclaimer } from '../components/MLDisclaimer'
 import { RunStatusBadge } from '../components/RunStatusBadge'
 import {
   PageHeader,
+  Term,
   ProvenanceStrip,
   SectionHeader,
   Stat,
@@ -77,8 +78,8 @@ const VERDICT_CONFIGS: Record<MLVerdict, VerdictConfig> = {
       'The model passed the full significance battery net of costs: it beat all baselines in aggregate, the deflated Sharpe is positive, PBO is low, and it ranked above the Monte-Carlo random ensemble. This means the strategy survived this significance battery — nothing more. It is not a signal to trade real money.',
     bg: 'bg-emerald-950/70',
     border: 'border-emerald-800',
-    textColor: 'text-emerald-400',
-    badgeClass: 'bg-emerald-950 text-emerald-400 border border-emerald-800',
+    textColor: 'text-positive',
+    badgeClass: 'bg-emerald-950 text-positive border border-emerald-800',
   },
   fail: {
     label: 'FAIL',
@@ -86,8 +87,8 @@ const VERDICT_CONFIGS: Record<MLVerdict, VerdictConfig> = {
       'The model did not beat one or more baselines net of costs, or failed the statistical significance tests. There is insufficient evidence of edge in this dataset for this configuration.',
     bg: 'bg-rose-950/70',
     border: 'border-rose-800',
-    textColor: 'text-rose-400',
-    badgeClass: 'bg-rose-950 text-rose-400 border border-rose-800',
+    textColor: 'text-negative',
+    badgeClass: 'bg-rose-950 text-negative border border-rose-800',
   },
   inconclusive: {
     label: 'INCONCLUSIVE',
@@ -128,7 +129,7 @@ function VerdictBlock({
           {verdict}
         </span>
       </div>
-      <p className="text-sm text-zinc-300 leading-relaxed">{cfg.description}</p>
+      <p className="text-sm text-ink-muted leading-relaxed">{cfg.description}</p>
       {cfg.extra && (
         <p className="text-sm font-medium text-amber-300/90 leading-relaxed border-l-2 border-amber-700 pl-3">
           {cfg.extra}
@@ -142,7 +143,7 @@ function VerdictBlock({
           {reasons.map((r, i) => (
             <li
               key={i}
-              className="flex items-start gap-2 text-xs text-zinc-400 leading-relaxed"
+              className="flex items-start gap-2 text-xs text-ink-muted leading-relaxed"
             >
               <span className={`mt-0.5 shrink-0 ${cfg.textColor}`} aria-hidden="true">
                 ›
@@ -186,10 +187,10 @@ function BaselineComparison({ results }: { results: MLWalkForwardResult }) {
         title="Model vs Baselines — Aggregate"
         subtitle="Compounded out-of-sample total return, net of the same fees and slippage applied to every strategy. This is the primary verdict basis."
       />
-      <div className="bg-zinc-900 border border-zinc-800 rounded px-4 py-3">
+      <div className="bg-surface border border-hairline rounded px-4 py-3">
         <Table>
           <thead>
-            <tr className="border-b border-zinc-800">
+            <tr className="border-b border-hairline">
               <Th>Strategy</Th>
               <Th align="right">Total Return</Th>
               <Th align="right">Turnover</Th>
@@ -197,20 +198,20 @@ function BaselineComparison({ results }: { results: MLWalkForwardResult }) {
               <Th align="right">Beats (splits)</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800/60">
+          <tbody className="divide-y divide-hairline/60">
             {/* Model row */}
-            <tr className="bg-zinc-800/20">
-              <Td className="text-zinc-50 font-medium">Model</Td>
+            <tr className="bg-raised/20">
+              <Td className="text-ink font-medium">Model</Td>
               <Td mono align="right" className={returnColorClass(am.total_return_pct)}>
                 {formatSignedPercent(am.total_return_pct ?? 0)}
               </Td>
-              <Td mono align="right" className="text-zinc-400">
+              <Td mono align="right" className="text-ink-muted">
                 {fmtNum(am.mean_turnover_annualized)}×/yr
               </Td>
-              <Td mono align="right" className="text-zinc-400">
+              <Td mono align="right" className="text-ink-muted">
                 {Math.round(am.num_oos_round_trips ?? 0)}
               </Td>
-              <Td mono align="right" className="text-zinc-500">
+              <Td mono align="right" className="text-ink-subtle">
                 —
               </Td>
             </tr>
@@ -219,26 +220,26 @@ function BaselineComparison({ results }: { results: MLWalkForwardResult }) {
               const wins = am[aggModelKey(key, 'splits_beating')]
               const beats = (am[aggModelKey(key, 'beats')] ?? 0) > 0.5
               return (
-                <tr key={key} className="hover:bg-zinc-800/10 transition-colors">
-                  <Td className="text-zinc-400">{baselineLabel(key)}</Td>
-                  <Td mono align="right" className="text-zinc-400">
+                <tr key={key} className="hover:bg-raised/10 transition-colors">
+                  <Td className="text-ink-muted">{baselineLabel(key)}</Td>
+                  <Td mono align="right" className="text-ink-muted">
                     {formatSignedPercent(bm.total_return_pct ?? 0)}
                   </Td>
-                  <Td mono align="right" className="text-zinc-500">
+                  <Td mono align="right" className="text-ink-subtle">
                     {fmtNum(bm.mean_turnover_annualized)}×/yr
                   </Td>
-                  <Td mono align="right" className="text-zinc-500">
+                  <Td mono align="right" className="text-ink-subtle">
                     {Math.round(bm.num_oos_round_trips ?? 0)}
                   </Td>
                   <Td mono align="right">
                     <span
                       className={
-                        beats ? 'text-emerald-400' : 'text-rose-400'
+                        beats ? 'text-positive' : 'text-negative'
                       }
                     >
                       {beats ? 'Yes' : 'No'}
                       {wins !== undefined && n > 0 ? (
-                        <span className="text-zinc-500 ml-1">
+                        <span className="text-ink-subtle ml-1">
                           ({Math.round(wins)}/{Math.round(n)})
                         </span>
                       ) : null}
@@ -248,14 +249,14 @@ function BaselineComparison({ results }: { results: MLWalkForwardResult }) {
               )
             })}
             {/* MC ensemble pseudo-row — turnover goes in the Turnover column, not Total Return */}
-            <tr className="hover:bg-zinc-800/10 transition-colors">
-              <Td className="text-zinc-500 italic text-xs">MC Ensemble (random null)</Td>
-              <Td mono align="right" className="text-zinc-500">—</Td>
-              <Td mono align="right" className="text-zinc-500 text-xs">
+            <tr className="hover:bg-raised/10 transition-colors">
+              <Td className="text-ink-subtle italic text-xs">MC Ensemble (random null)</Td>
+              <Td mono align="right" className="text-ink-subtle">—</Td>
+              <Td mono align="right" className="text-ink-subtle text-xs">
                 {fmtNum(am.mc_mean_turnover_annualized)}×/yr
               </Td>
-              <Td mono align="right" className="text-zinc-500">—</Td>
-              <Td mono align="right" className="text-zinc-500">—</Td>
+              <Td mono align="right" className="text-ink-subtle">—</Td>
+              <Td mono align="right" className="text-ink-subtle">—</Td>
             </tr>
           </tbody>
         </Table>
@@ -265,10 +266,10 @@ function BaselineComparison({ results }: { results: MLWalkForwardResult }) {
 }
 
 function returnColorClass(v: number | undefined): string {
-  if (v === undefined) return 'text-zinc-300'
-  if (v > 0) return 'text-emerald-400'
-  if (v < 0) return 'text-rose-400'
-  return 'text-zinc-300'
+  if (v === undefined) return 'text-ink-muted'
+  if (v > 0) return 'text-positive'
+  if (v < 0) return 'text-negative'
+  return 'text-ink-muted'
 }
 
 // ---------------------------------------------------------------------------
@@ -361,7 +362,7 @@ function SignificanceSection({ sig }: { sig: MLSignificanceBlock }) {
 function SplitsTable({ splits }: { splits: MLSplitResult[] }) {
   if (splits.length === 0) {
     return (
-      <p className="text-sm text-zinc-500">
+      <p className="text-sm text-ink-subtle">
         No evaluated splits (all were skipped or the dataset was too short).
       </p>
     )
@@ -370,11 +371,11 @@ function SplitsTable({ splits }: { splits: MLSplitResult[] }) {
   const baselineKeys = Object.keys(splits[0]?.baselines ?? {})
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded px-4 py-3">
+    <div className="bg-surface border border-hairline rounded px-4 py-3">
       <Table maxHeight="24rem">
         <thead>
-          <tr className="border-b border-zinc-800">
-            <Th sticky className="sticky left-0 bg-zinc-950 z-20">Test Window</Th>
+          <tr className="border-b border-hairline">
+            <Th sticky className="sticky left-0 bg-canvas z-20">Test Window</Th>
             <Th sticky align="right">OOS Bars</Th>
             <Th sticky align="right" sub="model">Return</Th>
             {baselineKeys.map((k) => (
@@ -391,22 +392,22 @@ function SplitsTable({ splits }: { splits: MLSplitResult[] }) {
             <Th sticky align="right">No Leakage?</Th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-zinc-800/60">
+        <tbody className="divide-y divide-hairline/60">
           {splits.map((s, i) => (
-            <tr key={i} className="align-top hover:bg-zinc-800/20 transition-colors">
-              <Td mono className="text-zinc-400 whitespace-nowrap sticky left-0 bg-zinc-900 z-10">
+            <tr key={i} className="align-top hover:bg-raised/20 transition-colors">
+              <Td mono className="text-ink-muted whitespace-nowrap sticky left-0 bg-surface z-10">
                 {s.test_start.slice(0, 10)}
-                <span className="text-zinc-600">–</span>
+                <span className="text-ink-subtle">–</span>
                 {s.test_end.slice(0, 10)}
               </Td>
-              <Td mono align="right" className="text-zinc-500">
+              <Td mono align="right" className="text-ink-subtle">
                 {s.n_oos_bars}
               </Td>
               <Td mono align="right" className={returnColorClass(s.model.total_return_pct)}>
                 {formatSignedPercent(s.model.total_return_pct)}
               </Td>
               {baselineKeys.map((k) => (
-                <Td key={k} mono align="right" className="text-zinc-500">
+                <Td key={k} mono align="right" className="text-ink-subtle">
                   {formatSignedPercent(
                     s.baselines[k]?.total_return_pct ?? 0,
                   )}
@@ -416,20 +417,20 @@ function SplitsTable({ splits }: { splits: MLSplitResult[] }) {
                 <Td key={`b-${k}`} mono align="right">
                   <span
                     className={
-                      s.beats[k] ? 'text-emerald-400' : 'text-rose-400'
+                      s.beats[k] ? 'text-positive' : 'text-negative'
                     }
                   >
                     {s.beats[k] ? 'Yes' : 'No'}
                   </span>
                 </Td>
               ))}
-              <Td mono align="right" className="text-zinc-500">
+              <Td mono align="right" className="text-ink-subtle">
                 {s.model.oos_round_trips}
               </Td>
               <Td mono align="right">
                 <span
                   className={
-                    s.no_look_ahead ? 'text-emerald-400' : 'text-rose-400'
+                    s.no_look_ahead ? 'text-positive' : 'text-negative'
                   }
                 >
                   {s.no_look_ahead ? 'Yes' : 'NO'}
@@ -456,21 +457,21 @@ function SkippedSection({ skipped }: { skipped: MLSkippedSplit[] }) {
         title="Skipped Splits"
         subtitle="Splits where the model could not be trained (e.g. a single-class in-sample fold). These are excluded from all aggregate metrics."
       />
-      <div className="bg-zinc-900 border border-zinc-800 rounded px-4 py-3">
+      <div className="bg-surface border border-hairline rounded px-4 py-3">
         <Table>
           <thead>
-            <tr className="border-b border-zinc-800">
+            <tr className="border-b border-hairline">
               <Th>Test Window</Th>
               <Th>Reason</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800/60">
+          <tbody className="divide-y divide-hairline/60">
             {skipped.map((s, i) => (
               <tr key={i}>
-                <Td mono className="text-zinc-500 whitespace-nowrap">
+                <Td mono className="text-ink-subtle whitespace-nowrap">
                   {s.test_start.slice(0, 10)}–{s.test_end.slice(0, 10)}
                 </Td>
-                <Td className="text-zinc-400 text-xs">{s.reason}</Td>
+                <Td className="text-ink-muted text-xs">{s.reason}</Td>
               </tr>
             ))}
           </tbody>
@@ -499,36 +500,36 @@ function ClassificationSection({ splits }: { splits: MLSplitResult[] }) {
       />
       <div
         role="note"
-        className="bg-zinc-900 border border-zinc-700 rounded p-3"
+        className="bg-surface border border-edge rounded p-3"
       >
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-ink-subtle">
           AUC and Brier score measure how well the model predicts the directional
           label — they say nothing about whether those predictions are profitable
           after fees and slippage. These are diagnostic context only, shown
           de-emphasized for completeness.
         </p>
       </div>
-      <div className="bg-zinc-900 border border-zinc-800 rounded px-4 py-3">
+      <div className="bg-surface border border-hairline rounded px-4 py-3">
         <Table>
           <thead>
-            <tr className="border-b border-zinc-800">
+            <tr className="border-b border-hairline">
               <Th>Split</Th>
               <Th align="right">AUC</Th>
               <Th align="right">Brier</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800/60">
+          <tbody className="divide-y divide-hairline/60">
             {splits.map((s, i) => (
               <tr key={i}>
-                <Td mono className="text-zinc-500">
+                <Td mono className="text-ink-subtle">
                   {s.test_start.slice(0, 10)}–{s.test_end.slice(0, 10)}
                 </Td>
-                <Td mono align="right" className="text-zinc-500">
+                <Td mono align="right" className="text-ink-subtle">
                   {Number.isFinite(s.classification.auc)
                     ? s.classification.auc.toFixed(3)
                     : '—'}
                 </Td>
-                <Td mono align="right" className="text-zinc-500">
+                <Td mono align="right" className="text-ink-subtle">
                   {Number.isFinite(s.classification.brier)
                     ? s.classification.brier.toFixed(3)
                     : '—'}
@@ -575,7 +576,7 @@ function WalkForwardResults({ results }: { results: MLWalkForwardResult }) {
 
       <ClassificationSection splits={results.splits} />
 
-      <p className="text-xs text-zinc-600 border-t border-zinc-800 pt-4">
+      <p className="text-xs text-ink-subtle border-t border-hairline pt-4">
         All results are simulated and out-of-sample, net of fees and slippage.
         Inconclusive is the expected outcome on thin daily data. A pass here is
         not a signal to trade real money. Not financial advice.
@@ -622,19 +623,19 @@ function ApiOnlyKindNote({
     <div className="space-y-4">
       <div
         role="note"
-        className="bg-zinc-900 border border-zinc-700 rounded p-5 space-y-2"
+        className="bg-surface border border-edge rounded p-5 space-y-2"
       >
-        <p className="text-sm font-medium text-zinc-300">
+        <p className="text-sm font-medium text-ink-muted">
           {kindLabel(kind)} results are not viewable in the UI yet.
         </p>
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-ink-subtle">
           This evaluation completed successfully. Inspect its full results via
           the API:{' '}
-          <code className="font-mono text-xs text-zinc-400">
+          <code className="font-mono text-xs text-ink-muted">
             GET /ml/evaluations/{'{id}'}
           </code>
           . The result JSON is stored in the{' '}
-          <code className="font-mono text-xs text-zinc-400">results</code>{' '}
+          <code className="font-mono text-xs text-ink-muted">results</code>{' '}
           field of the response.
         </p>
       </div>
@@ -733,21 +734,21 @@ export default function MLEvaluationDetail() {
 
       {loading && data === null ? (
         <div
-          className="bg-zinc-900 border border-zinc-800 rounded p-8 text-center motion-safe:animate-pulse"
+          className="bg-surface border border-hairline rounded p-8 text-center motion-safe:animate-pulse"
           aria-busy="true"
         >
-          <p className="text-sm text-zinc-500">Loading evaluation…</p>
+          <p className="text-sm text-ink-subtle">Loading evaluation…</p>
         </div>
       ) : error ? (
         <div className="space-y-3">
           <Link
             to="/ml"
-            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+            className="text-xs text-ink-subtle hover:text-ink-muted transition-colors"
           >
             ← ML Models
           </Link>
-          <div className="bg-zinc-900 border border-zinc-800 rounded p-5">
-            <p role="alert" className="text-sm text-rose-400">
+          <div className="bg-surface border border-hairline rounded p-5">
+            <p role="alert" className="text-sm text-negative">
               {isNotFound(error)
                 ? `ML evaluation ${evalId} not found.`
                 : extractMessage(error)}
@@ -761,7 +762,7 @@ export default function MLEvaluationDetail() {
             title={
               <span className="font-mono">
                 {data.symbol}{' '}
-                <span className="text-zinc-500 text-base font-normal">
+                <span className="text-ink-subtle text-base font-normal">
                   · {kindLabel(data.kind)}
                 </span>
               </span>
@@ -770,15 +771,24 @@ export default function MLEvaluationDetail() {
             meta={<RunStatusBadge status={data.status} />}
           />
 
+          <p className="text-sm text-ink-muted max-w-3xl">
+            Did this model actually learn something, or just get lucky? This page
+            puts it through a battery of <Term id="significance">significance</Term>{' '}
+            checks — like the <Term id="deflated_sharpe">deflated Sharpe</Term> and{' '}
+            <Term id="pbo">probability of overfitting</Term> — and gives a{' '}
+            <Term id="verdict">verdict</Term>. On thin daily data, &ldquo;inconclusive&rdquo;
+            is the normal, expected result.
+          </p>
+
           <ProvenanceStrip items={provenance} />
 
           {isActive(data.status) ? (
-            <div className="bg-zinc-900 border border-zinc-800 rounded p-8 text-center">
+            <div className="bg-surface border border-hairline rounded p-8 text-center">
               <span
-                className="inline-block h-4 w-4 border-2 border-zinc-600 border-t-amber-400 rounded-full motion-safe:animate-spin mb-3"
+                className="inline-block h-4 w-4 border-2 border-edge border-t-accent rounded-full motion-safe:animate-spin mb-3"
                 aria-hidden="true"
               />
-              <p className="text-sm text-zinc-400">
+              <p className="text-sm text-ink-muted">
                 {data.status === 'queued'
                   ? 'Queued — waiting for a worker…'
                   : 'Running walk-forward evaluation — this can take several minutes…'}{' '}
@@ -786,8 +796,8 @@ export default function MLEvaluationDetail() {
               </p>
             </div>
           ) : data.status === 'failed' ? (
-            <div className="bg-zinc-900 border border-rose-900/50 rounded p-5">
-              <p role="alert" className="text-sm text-rose-400">
+            <div className="bg-surface border border-rose-900/50 rounded p-5">
+              <p role="alert" className="text-sm text-negative">
                 This evaluation failed. Check the worker logs for the cause.
               </p>
             </div>
@@ -801,8 +811,8 @@ export default function MLEvaluationDetail() {
               results={data.results as Record<string, unknown>}
             />
           ) : (
-            <div className="bg-zinc-900 border border-zinc-800 rounded p-5">
-              <p className="text-sm text-zinc-500">
+            <div className="bg-surface border border-hairline rounded p-5">
+              <p className="text-sm text-ink-subtle">
                 Evaluation completed but results are not available. Status:{' '}
                 <code className="font-mono text-xs">{data.status}</code>
               </p>

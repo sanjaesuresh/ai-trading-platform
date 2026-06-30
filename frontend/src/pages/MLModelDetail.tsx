@@ -25,7 +25,7 @@ function ValidationMetrics({ metrics }: { metrics: Record<string, unknown> }) {
   const entries = Object.entries(metrics)
   if (entries.length === 0) {
     return (
-      <p className="text-sm text-zinc-500">
+      <p className="text-sm text-ink-subtle">
         No validation metrics recorded for this model.
       </p>
     )
@@ -48,17 +48,17 @@ function JsonBlock({ label, data }: { label: string; data: Record<string, unknow
   const entries = Object.entries(data)
   if (entries.length === 0) return null
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded p-4">
-      <p className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-2">
+    <div className="bg-surface border border-hairline rounded p-4">
+      <p className="text-[11px] font-medium text-ink-subtle uppercase tracking-wider mb-2">
         {label}
       </p>
       <dl className="space-y-1">
         {entries.map(([k, v]) => (
           <div key={k} className="flex gap-3">
-            <dt className="font-mono text-xs text-zinc-500 shrink-0 w-40 truncate">
+            <dt className="font-mono text-xs text-ink-subtle shrink-0 w-40 truncate">
               {k}
             </dt>
-            <dd className="font-mono text-xs text-zinc-300 break-all">
+            <dd className="font-mono text-xs text-ink-muted break-all">
               {JSON.stringify(v)}
             </dd>
           </div>
@@ -97,15 +97,15 @@ export default function MLModelDetail() {
     <div className="space-y-6">
       {loading && data === null ? (
         <div
-          className="bg-zinc-900 border border-zinc-800 rounded p-8 text-center motion-safe:animate-pulse"
+          className="bg-surface border border-hairline rounded p-8 text-center motion-safe:animate-pulse"
           aria-busy="true"
         >
-          <p className="text-sm text-zinc-500">Loading model…</p>
+          <p className="text-sm text-ink-subtle">Loading model…</p>
         </div>
       ) : error ? (
         <div className="space-y-3">
-          <div className="bg-zinc-900 border border-zinc-800 rounded p-5">
-            <p role="alert" className="text-sm text-rose-400">
+          <div className="bg-surface border border-hairline rounded p-5">
+            <p role="alert" className="text-sm text-negative">
               {isNotFound(error)
                 ? `Model "${modelId}" not found.`
                 : extractMessage(error)}
@@ -121,6 +121,13 @@ export default function MLModelDetail() {
             }
             subtitle={`LightGBM classifier · ${data.symbols.join(', ')} · horizon ${data.horizon}d`}
           />
+
+          <p className="text-sm text-ink-muted max-w-3xl">
+            A model card: exactly how this model was built and pinned, so anyone
+            could reproduce it. It records what it was trained on, its settings, and
+            how well it scored — but a good score here is a research result, not a
+            trading signal.
+          </p>
 
           <MLDisclaimer />
 

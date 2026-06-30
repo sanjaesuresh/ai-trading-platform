@@ -5,7 +5,7 @@ import { runBacktest } from '../api/backtests'
 import type { RunRequest } from '../types/backtest'
 import type { StrategyInfo } from '../types/strategy'
 import { StrategyParamFields, defaultsFromSchema } from './StrategyParamFields'
-import { SectionHeader, Field, inputClass } from './ui'
+import { SectionHeader, Field, inputClass, Term } from './ui'
 import { extractMessage } from '../utils/errors'
 
 interface TextFieldProps {
@@ -134,7 +134,7 @@ export function RunForm() {
 
   return (
     <form onSubmit={(e) => void handleSubmit(e)} className="space-y-8">
-      <p className="text-xs text-amber-300/70">
+      <p className="text-xs text-caution/80">
         Simulated only — results are backtests on historical data, not financial advice.
       </p>
 
@@ -166,18 +166,18 @@ export function RunForm() {
       <section>
         <SectionHeader title="Strategy" subtitle="The rule set and its parameters." />
         {stratError !== null ? (
-          <div className="bg-zinc-900 border border-zinc-800 rounded p-4">
-            <p role="alert" className="text-sm text-rose-400">{stratError}</p>
+          <div className="bg-surface border border-hairline rounded-lg p-4">
+            <p role="alert" className="text-sm text-negative">{stratError}</p>
             <button
               type="button"
               onClick={loadStrategies}
-              className="mt-2 text-sm text-amber-400 hover:text-amber-300"
+              className="mt-2 text-sm text-accent hover:text-accent-bright"
             >
               Retry
             </button>
           </div>
         ) : strategies === null ? (
-          <p className="text-sm text-zinc-500" aria-busy="true">Loading strategies…</p>
+          <p className="text-sm text-ink-subtle" aria-busy="true">Loading strategies…</p>
         ) : (
           <div className="space-y-4">
             <Field label="Strategy" htmlFor="strategy">
@@ -207,7 +207,13 @@ export function RunForm() {
       <section>
         <SectionHeader
           title="Execution"
-          subtitle="Starting capital and the trading frictions applied to every fill."
+          subtitle={
+            <>
+              Starting capital and the trading frictions —{' '}
+              <Term id="fees">fees</Term> and <Term id="slippage">slippage</Term> —
+              applied to every fill.
+            </>
+          }
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <TextField id="capital" label="Initial Capital" unit="USD" type="number" step="any" value={initialCapital} onChange={setInitialCapital} />
@@ -221,7 +227,16 @@ export function RunForm() {
       <section>
         <SectionHeader
           title="Sizing & Risk"
-          subtitle="Optional controls. Leave a field empty to disable it."
+          subtitle={
+            <>
+              Optional safety controls —{' '}
+              <Term id="vol_targeting">volatility targeting</Term>,{' '}
+              <Term id="stop_loss">stop loss</Term>,{' '}
+              <Term id="take_profit">take profit</Term>, and a{' '}
+              <Term id="drawdown_kill">drawdown kill-switch</Term>. Leave a field
+              empty to turn it off.
+            </>
+          }
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <TextField id="targetvol" label="Target Volatility" unit="annual" type="number" step="any" value={targetVol} onChange={setTargetVol} hint="e.g. 0.15 = 15%. Empty = fixed sizing." />
@@ -233,7 +248,7 @@ export function RunForm() {
       </section>
 
       {error !== null && (
-        <p role="alert" className="text-sm text-rose-400">{error}</p>
+        <p role="alert" className="text-sm text-negative">{error}</p>
       )}
 
       <div className="flex items-center gap-3">
@@ -241,7 +256,7 @@ export function RunForm() {
           type="submit"
           disabled={submitting || strategies === null}
           aria-busy={submitting}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-amber-400 text-zinc-950 text-sm font-semibold rounded transition-colors hover:bg-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-canvas text-sm font-semibold rounded-lg transition-colors hover:bg-accent-bright disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {submitting ? 'Running…' : 'Run Backtest'}
         </button>

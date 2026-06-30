@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 
 /** Shared input styling so every form control looks and focuses the same. */
 export const inputClass =
-  'w-full bg-zinc-950 border border-zinc-700 rounded px-2 py-1.5 text-sm font-mono text-zinc-50 focus:border-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400'
+  'w-full bg-canvas border border-edge rounded-lg px-2.5 py-1.5 text-sm font-mono text-ink placeholder:text-ink-subtle focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/60'
 
 interface FieldProps {
   label: string
@@ -36,14 +36,14 @@ export function Field({ label, htmlFor, unit, hint, children }: FieldProps) {
         htmlFor={htmlFor}
         className="flex items-baseline justify-between gap-2 mb-1"
       >
-        <span className="text-xs font-medium text-zinc-400">{label}</span>
+        <span className="text-xs font-medium text-ink-muted">{label}</span>
         {unit !== undefined && (
-          <span className="text-[11px] font-mono text-zinc-600">{unit}</span>
+          <span className="text-[11px] font-mono text-ink-subtle">{unit}</span>
         )}
       </label>
       {wiredChildren}
       {hint !== undefined && (
-        <p id={hintId} className="mt-1 text-[11px] leading-snug text-zinc-600">
+        <p id={hintId} className="mt-1 text-[11px] leading-snug text-ink-subtle">
           {hint}
         </p>
       )}

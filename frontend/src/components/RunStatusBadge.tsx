@@ -5,27 +5,27 @@ interface RunStatusBadgeProps {
 const CONFIG: Record<string, { label: string; cls: string }> = {
   queued: {
     label: 'Queued',
-    cls: 'bg-slate-800 text-slate-300 border border-slate-600',
+    cls: 'bg-raised text-ink-muted border border-edge',
   },
   completed: {
     label: 'Completed',
-    cls: 'bg-emerald-950 text-emerald-400 border border-emerald-800',
+    cls: 'bg-positive/10 text-positive border border-positive/30',
   },
   failed: {
     label: 'Failed',
-    cls: 'bg-rose-950 text-rose-400 border border-rose-800',
+    cls: 'bg-negative/10 text-negative border border-negative/30',
   },
   running: {
     label: 'Running',
-    cls: 'bg-amber-950 text-amber-400 border border-amber-800 motion-safe:animate-pulse',
+    cls: 'bg-caution/10 text-caution border border-caution/30 motion-safe:animate-pulse',
   },
   active: {
     label: 'Active',
-    cls: 'bg-emerald-950 text-emerald-400 border border-emerald-800',
+    cls: 'bg-positive/10 text-positive border border-positive/30',
   },
   halted: {
     label: 'Halted',
-    cls: 'bg-rose-950 text-rose-400 border border-rose-800',
+    cls: 'bg-negative/10 text-negative border border-negative/30',
   },
 }
 
@@ -33,7 +33,7 @@ export function RunStatusBadge({ status }: RunStatusBadgeProps) {
   const key = status.toLowerCase()
   const { label, cls } = CONFIG[key] ?? {
     label: status,
-    cls: 'bg-zinc-800 text-zinc-400 border border-zinc-700',
+    cls: 'bg-raised text-ink-muted border border-edge',
   }
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium ${cls}`}>

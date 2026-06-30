@@ -19,13 +19,13 @@ export function ProvenanceStrip({ items }: ProvenanceStripProps) {
   if (shown.length === 0) return null
 
   return (
-    <dl className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded border border-zinc-800 bg-zinc-900 px-4 py-2.5">
+    <dl className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border border-hairline bg-surface px-4 py-2.5">
       {shown.map((item) => (
         <div key={item.label} className="flex items-baseline gap-1.5">
-          <dt className="text-[11px] uppercase tracking-wider text-zinc-600">
+          <dt className="text-[11px] uppercase tracking-wider text-ink-subtle">
             {item.label}
           </dt>
-          <dd className="font-mono text-xs text-zinc-300">{item.value}</dd>
+          <dd className="font-mono text-xs text-ink-muted">{item.value}</dd>
         </div>
       ))}
     </dl>

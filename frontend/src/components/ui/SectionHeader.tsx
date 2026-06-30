@@ -17,12 +17,12 @@ export function SectionHeader({ title, subtitle, id, right }: SectionHeaderProps
       <div>
         <h2
           id={id}
-          className="text-xs font-medium text-zinc-500 uppercase tracking-wider"
+          className="text-xs font-semibold text-ink-muted uppercase tracking-wider"
         >
           {title}
         </h2>
         {subtitle !== undefined && (
-          <p className="text-xs text-zinc-600 mt-1 max-w-2xl">{subtitle}</p>
+          <p className="text-xs text-ink-subtle mt-1 max-w-2xl">{subtitle}</p>
         )}
       </div>
       {right !== undefined && <div className="shrink-0">{right}</div>}

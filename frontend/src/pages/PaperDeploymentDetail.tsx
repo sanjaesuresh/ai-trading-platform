@@ -64,24 +64,24 @@ function ListTable({
     <section aria-label={title}>
       <SectionHeader title={title} subtitle={subtitle} />
       {rows.length === 0 ? (
-        <div className="bg-zinc-900 border border-zinc-800 rounded p-6 text-center">
-          <p className="text-sm text-zinc-500">{empty}</p>
+        <div className="bg-surface border border-hairline rounded p-6 text-center">
+          <p className="text-sm text-ink-subtle">{empty}</p>
         </div>
       ) : (
-        <div className="bg-zinc-900 border border-zinc-800 rounded px-4 py-3">
+        <div className="bg-surface border border-hairline rounded px-4 py-3">
           <Table>
             <thead>
-              <tr className="border-b border-zinc-800">
+              <tr className="border-b border-hairline">
                 {cols.map((c) => (
                   <Th key={c.label} align={c.align} sub={c.sub}>{c.label}</Th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800/60">
+            <tbody className="divide-y divide-hairline/60">
               {rows.map((row) => (
-                <tr key={row.key} className="hover:bg-zinc-800/30 transition-colors">
+                <tr key={row.key} className="hover:bg-raised/30 transition-colors">
                   {row.cells.map((cell, j) => (
-                    <Td key={j} mono align={cols[j].align} className="text-zinc-300">{cell}</Td>
+                    <Td key={j} mono align={cols[j].align} className="text-ink-muted">{cell}</Td>
                   ))}
                 </tr>
               ))}
@@ -121,14 +121,14 @@ export default function PaperDeploymentDetail() {
 
   if (loading && data === null) {
     return (
-      <div className="bg-zinc-900 border border-zinc-800 rounded p-8 text-center motion-safe:animate-pulse" aria-busy="true">
-        <p className="text-sm text-zinc-500">Loading deployment…</p>
+      <div className="bg-surface border border-hairline rounded p-8 text-center motion-safe:animate-pulse" aria-busy="true">
+        <p className="text-sm text-ink-subtle">Loading deployment…</p>
       </div>
     )
   }
   if (error || data === null) {
     return (
-      <p role="alert" className="text-sm text-rose-400">
+      <p role="alert" className="text-sm text-negative">
         {error ? extractMessage(error) : 'Deployment not found.'}
       </p>
     )
@@ -181,7 +181,7 @@ export default function PaperDeploymentDetail() {
       <PageHeader
         back={{ to: '/paper', label: 'Paper Trading' }}
         title={deployment.name}
-        subtitle={`${deployment.strategy_name} · ${deployment.symbols.join(', ')}`}
+        subtitle={`${deployment.strategy_name} · ${deployment.symbols.join(', ')} · simulated paper`}
         meta={
           <div className="flex items-center gap-2">
             <RunStatusBadge status={deployment.status} />
@@ -190,7 +190,7 @@ export default function PaperDeploymentDetail() {
               onClick={() => void toggleEnabled()}
               disabled={busy}
               aria-busy={busy}
-              className="px-3 py-1.5 text-sm font-medium rounded border border-zinc-700 text-zinc-300 hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-1.5 text-sm font-medium rounded border border-edge text-ink-muted hover:bg-raised disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {deployment.enabled ? 'Disable' : 'Enable'}
             </button>
@@ -199,7 +199,7 @@ export default function PaperDeploymentDetail() {
               onClick={() => void runNow()}
               disabled={busy}
               aria-busy={busy}
-              className="px-3 py-1.5 text-sm font-semibold rounded bg-amber-400 text-zinc-950 hover:bg-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-1.5 text-sm font-semibold rounded bg-accent text-canvas hover:bg-accent-bright disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {busy ? 'Working…' : 'Run now'}
             </button>
@@ -207,22 +207,29 @@ export default function PaperDeploymentDetail() {
         }
       />
 
+      <p className="text-sm text-ink-muted max-w-3xl -mt-3">
+        A live (but simulated) run of this strategy. Below you can watch its
+        equity, current holdings, and every order and fill as they happen, and
+        compare them against the historical backtest results. The kill-switch above
+        flattens everything and stops new orders instantly.
+      </p>
+
       <ProvenanceStrip items={provenance} />
 
       <PaperDisclaimer />
 
       {global_kill.active && (
-        <p role="alert" className="text-sm text-rose-400 bg-rose-950/30 border border-rose-900/40 rounded p-3">
+        <p role="alert" className="text-sm text-negative bg-rose-950/30 border border-rose-900/40 rounded p-3">
           Global kill switch is ACTIVE — no new orders will be placed.
         </p>
       )}
       {deployment.status === 'halted' && (
-        <p role="alert" className="text-sm text-rose-400 bg-rose-950/30 border border-rose-900/40 rounded p-3">
+        <p role="alert" className="text-sm text-negative bg-rose-950/30 border border-rose-900/40 rounded p-3">
           Deployment halted{deployment.halt_reason ? `: ${deployment.halt_reason}` : ''}.
         </p>
       )}
-      {actionMsg && <p role="status" className="text-sm text-emerald-400">{actionMsg}</p>}
-      {actionErr && <p role="alert" className="text-sm text-rose-400">{actionErr}</p>}
+      {actionMsg && <p role="status" className="text-sm text-positive">{actionMsg}</p>}
+      {actionErr && <p role="alert" className="text-sm text-negative">{actionErr}</p>}
 
       {/* Portfolio snapshot */}
       {latest && (
@@ -250,7 +257,7 @@ export default function PaperDeploymentDetail() {
           title="Simulated Paper Equity"
           subtitle="Account value per simulated trading day on Alpaca's paper endpoint."
         />
-        <div className="bg-zinc-900 border border-zinc-800 rounded p-4">
+        <div className="bg-surface border border-hairline rounded p-4">
           <EquityCurve data={snapToEquity(data)} />
         </div>
       </section>
@@ -262,7 +269,7 @@ export default function PaperDeploymentDetail() {
           title="Paper vs Historical Backtest"
           subtitle="What the same strategy scored on history, for context. A backtest is not a prediction of paper results."
         />
-        <div className="bg-zinc-900 border border-zinc-800 rounded p-5 space-y-5">
+        <div className="bg-surface border border-hairline rounded p-5 space-y-5">
           {expectation ? (
             <StatGrid cols="grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
               <MetricStat metricKey="total_return_pct" value={expectation.total_return_pct} />
@@ -273,14 +280,14 @@ export default function PaperDeploymentDetail() {
               <MetricStat metricKey="num_round_trips" value={expectation.num_round_trips} />
             </StatGrid>
           ) : (
-            <p className="text-sm text-zinc-500">
+            <p className="text-sm text-ink-subtle">
               No historical backtest available yet (no stored history for this basket).
               A backtest is not a prediction of paper results.
             </p>
           )}
 
-          <div className="border-t border-zinc-800 pt-4">
-            <p className="text-xs text-zinc-500 uppercase tracking-wider mb-3">
+          <div className="border-t border-hairline pt-4">
+            <p className="text-xs text-ink-subtle uppercase tracking-wider mb-3">
               Slippage attribution — realized fill vs modeled open, per share (USD, cost-signed)
             </p>
             {slippage.count > 0 ? (
@@ -292,9 +299,9 @@ export default function PaperDeploymentDetail() {
                 <Stat label="Max" value={fmtDelta(slippage.max)} />
               </StatGrid>
             ) : (
-              <p className="text-sm text-zinc-500">No fills recorded yet.</p>
+              <p className="text-sm text-ink-subtle">No fills recorded yet.</p>
             )}
-            <p className="text-xs text-zinc-500 mt-3 leading-relaxed">
+            <p className="text-xs text-ink-subtle mt-3 leading-relaxed">
               {comparison?.caveat ??
                 'The backtest models a next-open fill; paper fills against real quotes and does not simulate dividends, market impact, latency, or queue position. The slippage distribution is the measured backtest↔paper gap; the paper↔live gap is larger and not modeled. Positive slippage = adverse cost. Simulated only.'}
             </p>
@@ -388,27 +395,27 @@ export default function PaperDeploymentDetail() {
           subtitle="Divergences between the platform's view and the broker's. Empty is good."
         />
         {reconciliations.length === 0 ? (
-          <div className="bg-zinc-900 border border-zinc-800 rounded p-6 text-center">
-            <p className="text-sm text-zinc-500">No divergences recorded — platform matches the broker.</p>
+          <div className="bg-surface border border-hairline rounded p-6 text-center">
+            <p className="text-sm text-ink-subtle">No divergences recorded — platform matches the broker.</p>
           </div>
         ) : (
-          <div className="bg-zinc-900 border border-zinc-800 rounded px-4 py-3">
+          <div className="bg-surface border border-hairline rounded px-4 py-3">
             <Table>
               <thead>
-                <tr className="border-b border-zinc-800">
+                <tr className="border-b border-hairline">
                   <Th>Day</Th>
                   <Th>Kind</Th>
                   <Th>Symbol</Th>
                   <Th>Detail</Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/60">
+              <tbody className="divide-y divide-hairline/60">
                 {reconciliations.map((r) => (
                   <tr key={r.id}>
-                    <Td mono className="text-zinc-500">{formatDate(r.trading_day)}</Td>
+                    <Td mono className="text-ink-subtle">{formatDate(r.trading_day)}</Td>
                     <Td className="text-amber-400">{r.kind}</Td>
-                    <Td className="text-zinc-400">{r.symbol ?? '—'}</Td>
-                    <Td className="text-zinc-400">{r.detail}</Td>
+                    <Td className="text-ink-muted">{r.symbol ?? '—'}</Td>
+                    <Td className="text-ink-muted">{r.detail}</Td>
                   </tr>
                 ))}
               </tbody>

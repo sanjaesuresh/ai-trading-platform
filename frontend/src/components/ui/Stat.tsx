@@ -2,9 +2,9 @@ import type { ReactNode } from 'react'
 import type { Tone } from '../../lib/metricDefinitions'
 
 export function toneClass(tone: Tone | undefined): string {
-  if (tone === 'pos') return 'text-emerald-400'
-  if (tone === 'neg') return 'text-rose-400'
-  return 'text-zinc-50'
+  if (tone === 'pos') return 'text-positive'
+  if (tone === 'neg') return 'text-negative'
+  return 'text-ink'
 }
 
 interface StatProps {
@@ -26,8 +26,8 @@ interface StatProps {
  */
 export function Stat({ label, value, unit, hint, tone, mono = true }: StatProps) {
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded p-4">
-      <dt className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider">
+    <div className="bg-surface border border-hairline rounded-lg p-4 shadow-card">
+      <dt className="text-[11px] font-medium text-ink-subtle uppercase tracking-wider">
         {label}
       </dt>
       <dd className="mt-1.5 flex items-baseline gap-1">
@@ -37,11 +37,11 @@ export function Stat({ label, value, unit, hint, tone, mono = true }: StatProps)
           {value}
         </span>
         {unit !== undefined && (
-          <span className="text-xs text-zinc-500 font-medium">{unit}</span>
+          <span className="text-xs text-ink-subtle font-medium">{unit}</span>
         )}
       </dd>
       {hint !== undefined && (
-        <p className="mt-1.5 text-[11px] leading-snug text-zinc-600">{hint}</p>
+        <p className="mt-1.5 text-[11px] leading-snug text-ink-subtle">{hint}</p>
       )}
     </div>
   )

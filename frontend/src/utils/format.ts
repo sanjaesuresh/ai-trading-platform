@@ -51,7 +51,7 @@ export function formatDateTime(isoString: string): string {
 
 /** Tailwind color class for positive/zero/negative percent values. */
 export function returnClass(value: number): string {
-  if (value > 0) return 'text-emerald-400'
-  if (value < 0) return 'text-rose-400'
-  return 'text-zinc-50'
+  if (value > 0) return 'text-positive'
+  if (value < 0) return 'text-negative'
+  return 'text-ink'
 }

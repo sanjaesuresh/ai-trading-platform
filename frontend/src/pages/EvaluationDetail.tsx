@@ -11,6 +11,7 @@ import type { Metrics } from '../types/backtest'
 import { RunStatusBadge } from '../components/RunStatusBadge'
 import {
   PageHeader,
+  Term,
   SectionHeader,
   Stat,
   StatGrid,
@@ -72,13 +73,13 @@ function DistributionSection({
   return (
     <section className="space-y-4" aria-label="Distribution">
       <div className="flex items-center gap-3">
-        <h2 className="text-sm font-semibold text-zinc-200">
+        <h2 className="text-sm font-semibold text-ink">
           Distribution of <span className="font-mono">{objective}</span>
         </h2>
         <span
           className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-mono ${
             oos
-              ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+              ? 'bg-emerald-950 text-positive border border-emerald-800'
               : 'bg-amber-950 text-amber-300 border border-amber-800'
           }`}
         >
@@ -131,7 +132,7 @@ function DistributionSection({
 
 function SplitsTable({ splits, objective }: { splits: SplitResult[]; objective: string }) {
   if (splits.length === 0) {
-    return <p className="text-sm text-zinc-500">No walk-forward splits fit this dataset.</p>
+    return <p className="text-sm text-ink-subtle">No walk-forward splits fit this dataset.</p>
   }
   return (
     <section className="space-y-3">
@@ -139,10 +140,10 @@ function SplitsTable({ splits, objective }: { splits: SplitResult[]; objective: 
         title="Per-Split Results"
         subtitle="Each walk-forward window: what the chosen params scored in-sample, out-of-sample, and against the baseline. Out-of-sample beating baseline is highlighted."
       />
-      <div className="bg-zinc-900 border border-zinc-800 rounded px-4 py-3">
+      <div className="bg-surface border border-hairline rounded px-4 py-3">
         <Table>
           <thead>
-            <tr className="border-b border-zinc-800">
+            <tr className="border-b border-hairline">
               <Th>Test Window</Th>
               <Th>Chosen Params</Th>
               <Th align="right">In-Sample</Th>
@@ -151,23 +152,23 @@ function SplitsTable({ splits, objective }: { splits: SplitResult[]; objective: 
               <Th align="right" sub="out">Trades</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800/60">
+          <tbody className="divide-y divide-hairline/60">
             {splits.map((s, i) => {
               const out = metricValue(s.out_sample, objective)
               const base = metricValue(s.baseline_out_sample, objective)
               const beat = out > base
               return (
                 <tr key={i} className="align-top">
-                  <Td mono className="text-zinc-400">{s.test_start}–{s.test_end}</Td>
-                  <Td mono className="text-zinc-500 max-w-xs">{paramsLabel(s.chosen_params)}</Td>
-                  <Td mono align="right" className="text-zinc-400">
+                  <Td mono className="text-ink-muted">{s.test_start}–{s.test_end}</Td>
+                  <Td mono className="text-ink-subtle max-w-xs">{paramsLabel(s.chosen_params)}</Td>
+                  <Td mono align="right" className="text-ink-muted">
                     {fmtObjective(objective, metricValue(s.in_sample, objective))}
                   </Td>
-                  <Td mono align="right" className={beat ? 'text-emerald-400' : 'text-zinc-300'}>
+                  <Td mono align="right" className={beat ? 'text-positive' : 'text-ink-muted'}>
                     {fmtObjective(objective, out)}
                   </Td>
-                  <Td mono align="right" className="text-zinc-400">{fmtObjective(objective, base)}</Td>
-                  <Td mono align="right" className="text-zinc-400">{s.num_trades_out}</Td>
+                  <Td mono align="right" className="text-ink-muted">{fmtObjective(objective, base)}</Td>
+                  <Td mono align="right" className="text-ink-muted">{s.num_trades_out}</Td>
                 </tr>
               )
             })}
@@ -186,7 +187,7 @@ function CombinationsTable({
   objective: string
 }) {
   if (combinations.length === 0) {
-    return <p className="text-sm text-zinc-500">No combinations were evaluated.</p>
+    return <p className="text-sm text-ink-subtle">No combinations were evaluated.</p>
   }
   return (
     <section className="space-y-3">
@@ -194,27 +195,27 @@ function CombinationsTable({
         title="All Combinations"
         subtitle="Every cell in the grid, in evaluation order — not ranked. A sweep is in-sample only; the spread here is what the multiple-testing caveat is about."
       />
-      <div className="bg-zinc-900 border border-zinc-800 rounded px-4 py-3">
+      <div className="bg-surface border border-hairline rounded px-4 py-3">
         <Table maxHeight="24rem">
           <thead>
-            <tr className="border-b border-zinc-800">
+            <tr className="border-b border-hairline">
               <Th sticky>Params</Th>
               <Th sticky align="right">In-Sample</Th>
               <Th sticky align="right">Out-of-Sample</Th>
               <Th sticky align="right" sub="in">Trades</Th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-800/60">
+          <tbody className="divide-y divide-hairline/60">
             {combinations.map((c, i) => (
               <tr key={i}>
-                <Td mono className="text-zinc-400 max-w-md">{paramsLabel(c.params)}</Td>
-                <Td mono align="right" className="text-zinc-300">
+                <Td mono className="text-ink-muted max-w-md">{paramsLabel(c.params)}</Td>
+                <Td mono align="right" className="text-ink-muted">
                   {fmtObjective(objective, metricValue(c.in_sample, objective))}
                 </Td>
-                <Td mono align="right" className="text-zinc-400">
+                <Td mono align="right" className="text-ink-muted">
                   {c.out_sample ? fmtObjective(objective, metricValue(c.out_sample, objective)) : '—'}
                 </Td>
-                <Td mono align="right" className="text-zinc-400">{c.num_trades_in}</Td>
+                <Td mono align="right" className="text-ink-muted">{c.num_trades_in}</Td>
               </tr>
             ))}
           </tbody>
@@ -245,7 +246,7 @@ function Results({ data }: { data: EvaluationDetailType }) {
         <CombinationsTable combinations={results.combinations ?? []} objective={objective} />
       )}
 
-      <p className="text-xs text-zinc-500 border-t border-zinc-800 pt-4">
+      <p className="text-xs text-ink-subtle border-t border-hairline pt-4">
         {MULTIPLE_TESTING_NOTE} Simulated only — not financial advice.
       </p>
     </div>
@@ -279,16 +280,16 @@ export default function EvaluationDetail() {
   return (
     <div className="space-y-6">
       {loading && data === null ? (
-        <div className="bg-zinc-900 border border-zinc-800 rounded p-8 text-center motion-safe:animate-pulse" aria-busy="true">
-          <p className="text-sm text-zinc-500">Loading evaluation…</p>
+        <div className="bg-surface border border-hairline rounded p-8 text-center motion-safe:animate-pulse" aria-busy="true">
+          <p className="text-sm text-ink-subtle">Loading evaluation…</p>
         </div>
       ) : error ? (
         <div className="space-y-3">
-          <Link to="/evaluations" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+          <Link to="/evaluations" className="text-xs text-ink-subtle hover:text-ink-muted transition-colors">
             ← Evaluations
           </Link>
-          <div className="bg-zinc-900 border border-zinc-800 rounded p-5">
-            <p role="alert" className="text-sm text-rose-400">
+          <div className="bg-surface border border-hairline rounded p-5">
+            <p role="alert" className="text-sm text-negative">
               {isNotFound(error) ? `Evaluation ${evalId} not found.` : extractMessage(error)}
             </p>
           </div>
@@ -300,29 +301,37 @@ export default function EvaluationDetail() {
             title={
               <span className="font-mono">
                 {data.symbol}{' '}
-                <span className="text-zinc-500 text-base font-normal">· {kindLabel(data.kind)}</span>
+                <span className="text-ink-subtle text-base font-normal">· {kindLabel(data.kind)}</span>
               </span>
             }
             subtitle={`${data.strategy_name} · maximizing ${data.objective}`}
             meta={<RunStatusBadge status={data.status} />}
           />
 
+          <p className="text-sm text-ink-muted max-w-3xl">
+            This run searched for the settings that scored best on its{' '}
+            <Term id="objective">objective</Term>. The numbers that matter are the{' '}
+            <Term id="out_of_sample">out-of-sample</Term> ones below — and watch the{' '}
+            <Term id="overfitting">overfitting</Term> checks, since a great-looking
+            result on tuned data often falls apart on fresh data. Simulated only.
+          </p>
+
           <ProvenanceStrip items={provenance} />
 
           {isActive(data.status) ? (
-            <div className="bg-zinc-900 border border-zinc-800 rounded p-8 text-center">
+            <div className="bg-surface border border-hairline rounded p-8 text-center">
               <span
-                className="inline-block h-4 w-4 border-2 border-zinc-600 border-t-amber-400 rounded-full motion-safe:animate-spin mb-3"
+                className="inline-block h-4 w-4 border-2 border-edge border-t-accent rounded-full motion-safe:animate-spin mb-3"
                 aria-hidden="true"
               />
-              <p className="text-sm text-zinc-400">
+              <p className="text-sm text-ink-muted">
                 {data.status === 'queued' ? 'Queued — waiting for a worker…' : 'Running…'} This
                 page updates automatically.
               </p>
             </div>
           ) : data.status === 'failed' ? (
-            <div className="bg-zinc-900 border border-rose-900/50 rounded p-5">
-              <p role="alert" className="text-sm text-rose-400">
+            <div className="bg-surface border border-rose-900/50 rounded p-5">
+              <p role="alert" className="text-sm text-negative">
                 This evaluation failed. Check the worker logs for the cause.
               </p>
             </div>

@@ -27,7 +27,7 @@ interface ThProps {
   sub?: ReactNode
   /** Keep the header visible while the body scrolls (needs Table maxHeight). */
   sticky?: boolean
-  /** Extra Tailwind classes (e.g. "sticky left-0 bg-zinc-900 z-20" for a frozen first column). */
+  /** Extra Tailwind classes (e.g. "sticky left-0 bg-surface z-20" for a frozen first column). */
   className?: string
 }
 
@@ -37,13 +37,13 @@ export function Th({ children, align = 'left', sub, sticky, className = '' }: Th
   return (
     <th
       scope="col"
-      className={`px-3 first:pl-0 last:pr-0 pb-2 align-bottom whitespace-nowrap text-[11px] font-medium text-zinc-500 uppercase tracking-wider ${alignClass(
+      className={`px-3 first:pl-0 last:pr-0 pb-2 align-bottom whitespace-nowrap text-[11px] font-semibold text-ink-subtle uppercase tracking-wider ${alignClass(
         align,
-      )} ${sticky ? 'sticky top-0 bg-zinc-950 z-10' : ''} ${className}`}
+      )} ${sticky ? 'sticky top-0 bg-surface z-10' : ''} ${className}`}
     >
       {children}
       {sub !== undefined && (
-        <span className="block text-[10px] font-normal normal-case tracking-normal text-zinc-600">
+        <span className="block text-[10px] font-normal normal-case tracking-normal text-ink-subtle">
           {sub}
         </span>
       )}

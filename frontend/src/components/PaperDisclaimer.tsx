@@ -7,12 +7,13 @@ export function PaperDisclaimer() {
     <div
       role="note"
       aria-label="Paper trading disclaimer"
-      className="bg-amber-950/40 border border-amber-900/50 rounded p-4"
+      className="bg-caution/10 border border-caution/25 rounded-lg p-4"
     >
-      <p className="text-sm text-amber-200/90 font-medium">
+      <p className="text-sm text-caution font-semibold">
+        <span aria-hidden className="mr-1.5">⚠️</span>
         Simulated paper trading — no real money.
       </p>
-      <p className="text-xs text-amber-300/70 mt-1 leading-relaxed">
+      <p className="text-xs text-caution/80 mt-1.5 leading-relaxed">
         Orders are placed against Alpaca&apos;s <strong>paper</strong> endpoint
         only; the live (real-money) endpoint is unreachable by design. Results are
         simulated, are <strong>not financial advice</strong>, and do not imply real

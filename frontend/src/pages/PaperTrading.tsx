@@ -13,7 +13,7 @@ import {
 } from '../components/StrategyParamFields'
 import { PaperDisclaimer } from '../components/PaperDisclaimer'
 import { RunStatusBadge } from '../components/RunStatusBadge'
-import { PageHeader, SectionHeader, Field, inputClass, Table, Th, Td } from '../components/ui'
+import { PageIntro, SectionHeader, Field, inputClass, Table, Th, Td, Term } from '../components/ui'
 import type { StrategyInfo } from '../types/strategy'
 import type {
   DeploymentRiskConfig,
@@ -158,15 +158,19 @@ export default function PaperTrading() {
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        title="Paper Trading"
-        subtitle="Run a strategy forward across a basket against Alpaca's paper endpoint, on the same portfolio core you backtest with. Simulated only — no real money."
-      />
+      <PageIntro title="Paper trading" icon="📈" eyebrow="Paper">
+        Once a strategy looks good in a backtest, you can let it run forward in real
+        time — placing pretend orders on a{' '}
+        <Term id="paper_trading">practice account</Term> as new prices arrive. It
+        uses the exact same engine your backtests do, so you can see whether the
+        live results line up with what the historical simulation showed. Still
+        100% simulated — no real money ever changes hands.
+      </PageIntro>
 
       <PaperDisclaimer />
 
       {loadErr && (
-        <p role="alert" className="text-sm text-rose-400">{loadErr}</p>
+        <p role="alert" className="text-sm text-negative">{loadErr}</p>
       )}
 
       <section aria-labelledby="kill-heading">
@@ -175,12 +179,12 @@ export default function PaperTrading() {
           title="Global Kill Switch"
           subtitle="A single master stop. While active, no deployment can submit a new order."
         />
-        <div className="bg-zinc-900 border border-zinc-800 rounded p-4 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-zinc-400">
+        <div className="bg-surface border border-hairline rounded p-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-ink-muted">
             {kill === null ? (
-              <span className="text-zinc-500">Loading kill-switch state…</span>
+              <span className="text-ink-subtle">Loading kill-switch state…</span>
             ) : kill.active ? (
-              <span className="text-rose-400 font-medium">ACTIVE — all new orders are halted.</span>
+              <span className="text-negative font-medium">ACTIVE — all new orders are halted.</span>
             ) : (
               'Inactive. Tripping it halts all new orders across every deployment.'
             )}
@@ -193,8 +197,8 @@ export default function PaperTrading() {
             aria-pressed={kill?.active ?? false}
             className={`px-3 py-1.5 text-sm font-semibold rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
               kill?.active
-                ? 'bg-emerald-500 text-zinc-950 hover:bg-emerald-400'
-                : 'bg-rose-500 text-zinc-50 hover:bg-rose-400'
+                ? 'bg-emerald-500 text-canvas hover:bg-emerald-400'
+                : 'bg-rose-500 text-ink hover:bg-rose-400'
             }`}
           >
             {kill === null ? 'Loading…' : kill.active ? 'Clear kill switch' : 'Trip kill switch'}
@@ -210,7 +214,7 @@ export default function PaperTrading() {
         />
         <form
           onSubmit={(e) => void handleCreate(e)}
-          className="bg-zinc-900 border border-zinc-800 rounded p-5 space-y-4"
+          className="bg-surface border border-hairline rounded p-5 space-y-4"
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Name" htmlFor="dep-name">
@@ -260,16 +264,16 @@ export default function PaperTrading() {
           </div>
 
           {selected && (
-            <fieldset className="border border-zinc-800 rounded p-4">
-              <legend className="text-xs text-zinc-500 uppercase tracking-wider px-1">
+            <fieldset className="border border-hairline rounded p-4">
+              <legend className="text-xs text-ink-subtle uppercase tracking-wider px-1">
                 Strategy parameters
               </legend>
               <StrategyParamFields schema={selected.params_schema} values={params} onChange={setParams} />
             </fieldset>
           )}
 
-          <fieldset className="border border-zinc-800 rounded p-4">
-            <legend className="text-xs text-zinc-500 uppercase tracking-wider px-1">
+          <fieldset className="border border-hairline rounded p-4">
+            <legend className="text-xs text-ink-subtle uppercase tracking-wider px-1">
               Risk limits
             </legend>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -296,19 +300,19 @@ export default function PaperTrading() {
               type="submit"
               disabled={submitting}
               aria-busy={submitting}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-amber-400 text-zinc-950 text-sm font-semibold rounded transition-colors hover:bg-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-canvas text-sm font-semibold rounded transition-colors hover:bg-accent-bright disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? 'Creating…' : 'Create Deployment'}
             </button>
-            <span className="text-xs text-zinc-500">
+            <span className="text-xs text-ink-subtle">
               Enabling this disables any other deployment (one shared paper account).
             </span>
             {formMsg && (
-              <p role="status" className="text-sm text-emerald-400">{formMsg}</p>
+              <p role="status" className="text-sm text-positive">{formMsg}</p>
             )}
           </div>
           {formErr !== null && (
-            <p role="alert" className="text-sm text-rose-400">{formErr}</p>
+            <p role="alert" className="text-sm text-negative">{formErr}</p>
           )}
         </form>
       </section>
@@ -320,19 +324,19 @@ export default function PaperTrading() {
           subtitle="Every paper deployment and whether it is currently allowed to trade."
           right={
             deployments.length > 0 ? (
-              <span className="font-mono text-xs text-zinc-500">{deployments.length} total</span>
+              <span className="font-mono text-xs text-ink-subtle">{deployments.length} total</span>
             ) : undefined
           }
         />
         {deployments.length === 0 ? (
-          <div className="bg-zinc-900 border border-zinc-800 rounded p-8 text-center">
-            <p className="text-sm text-zinc-500">No deployments yet. Create one above.</p>
+          <div className="bg-surface border border-hairline rounded p-8 text-center">
+            <p className="text-sm text-ink-subtle">No deployments yet. Create one above.</p>
           </div>
         ) : (
-          <div className="bg-zinc-900 border border-zinc-800 rounded px-4 py-3">
+          <div className="bg-surface border border-hairline rounded px-4 py-3">
             <Table>
               <thead>
-                <tr className="border-b border-zinc-800">
+                <tr className="border-b border-hairline">
                   <Th>ID</Th>
                   <Th>Name</Th>
                   <Th>Strategy</Th>
@@ -343,27 +347,27 @@ export default function PaperTrading() {
                   <Th align="right">Created</Th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-800/60">
+              <tbody className="divide-y divide-hairline/60">
                 {deployments.map((d) => (
-                  <tr key={d.id} className="hover:bg-zinc-800/30 transition-colors">
-                    <Td mono className="text-zinc-400">#{d.id}</Td>
+                  <tr key={d.id} className="hover:bg-raised/30 transition-colors">
+                    <Td mono className="text-ink-muted">#{d.id}</Td>
                     <Td>
-                      <Link to={`/paper/${d.id}`} className="text-amber-400 hover:text-amber-300 transition-colors">
+                      <Link to={`/paper/${d.id}`} className="text-accent hover:text-accent-bright transition-colors">
                         {d.name}
                       </Link>
                     </Td>
-                    <Td className="text-zinc-400 text-xs">{d.strategy_name}</Td>
-                    <Td mono className="text-zinc-500 text-xs">{d.symbols.join(', ')}</Td>
-                    <Td mono align="right" className="text-zinc-300">{formatCurrency(d.starting_capital)}</Td>
+                    <Td className="text-ink-muted text-xs">{d.strategy_name}</Td>
+                    <Td mono className="text-ink-subtle text-xs">{d.symbols.join(', ')}</Td>
+                    <Td mono align="right" className="text-ink-muted">{formatCurrency(d.starting_capital)}</Td>
                     <Td>
                       {d.enabled ? (
-                        <span className="text-emerald-400 font-mono text-xs">on</span>
+                        <span className="text-positive font-mono text-xs">on</span>
                       ) : (
-                        <span className="text-zinc-500 font-mono text-xs">off</span>
+                        <span className="text-ink-subtle font-mono text-xs">off</span>
                       )}
                     </Td>
                     <Td><RunStatusBadge status={d.status} /></Td>
-                    <Td mono align="right" className="text-zinc-500">{formatDate(d.created_at)}</Td>
+                    <Td mono align="right" className="text-ink-subtle">{formatDate(d.created_at)}</Td>
                   </tr>
                 ))}
               </tbody>

@@ -39,7 +39,7 @@ function labelFmt(label: string | number): string {
 export function EquityCurve({ data }: EquityCurveProps) {
   if (data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-48 text-zinc-500 text-sm">
+      <div className="flex items-center justify-center h-48 text-ink-subtle text-sm">
         No equity curve data available.
       </div>
     )
@@ -48,42 +48,42 @@ export function EquityCurve({ data }: EquityCurveProps) {
   return (
     <ResponsiveContainer width="100%" height={300}>
       <LineChart data={data} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke="#322d28" vertical={false} />
         <XAxis
           dataKey="timestamp"
           tickFormatter={xTick}
-          tick={{ fill: '#71717a', fontSize: 11, fontFamily: 'monospace' }}
-          stroke="#3f3f46"
+          tick={{ fill: '#7c736b', fontSize: 11, fontFamily: 'monospace' }}
+          stroke="#433c34"
           tickLine={false}
-          axisLine={{ stroke: '#3f3f46' }}
+          axisLine={{ stroke: '#433c34' }}
           minTickGap={50}
         />
         <YAxis
           tickFormatter={yTick}
-          tick={{ fill: '#71717a', fontSize: 11, fontFamily: 'monospace' }}
+          tick={{ fill: '#7c736b', fontSize: 11, fontFamily: 'monospace' }}
           tickLine={false}
           axisLine={false}
           width={64}
         />
         <Tooltip
           contentStyle={{
-            backgroundColor: '#18181b',
-            border: '1px solid #3f3f46',
-            borderRadius: '4px',
+            backgroundColor: '#272320',
+            border: '1px solid #433c34',
+            borderRadius: '8px',
             padding: '8px 12px',
           }}
-          labelStyle={{ color: '#71717a', fontSize: '11px', marginBottom: '4px' }}
-          itemStyle={{ color: '#fbbf24', fontSize: '12px', fontFamily: 'monospace' }}
+          labelStyle={{ color: '#a8a29e', fontSize: '11px', marginBottom: '4px' }}
+          itemStyle={{ color: '#5eead4', fontSize: '12px', fontFamily: 'monospace' }}
           labelFormatter={labelFmt}
           formatter={(value) => [formatCurrency(value as number), 'Equity']}
         />
         <Line
           type="monotone"
           dataKey="equity"
-          stroke="#fbbf24"
-          strokeWidth={1.5}
+          stroke="#2dd4bf"
+          strokeWidth={2}
           dot={false}
-          activeDot={{ r: 3, fill: '#fbbf24', stroke: '#09090b', strokeWidth: 2 }}
+          activeDot={{ r: 3, fill: '#2dd4bf', stroke: '#15120f', strokeWidth: 2 }}
         />
       </LineChart>
     </ResponsiveContainer>

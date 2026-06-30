@@ -33,17 +33,17 @@ function prettyKey(key: string): string {
 function DetailSkeleton() {
   return (
     <div className="space-y-6 motion-safe:animate-pulse" aria-busy="true" aria-label="Loading">
-      <div className="h-6 bg-zinc-800 rounded w-48" />
-      <div className="h-10 bg-zinc-900 border border-zinc-800 rounded" />
+      <div className="h-6 bg-raised rounded w-48" />
+      <div className="h-10 bg-surface border border-hairline rounded" />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-          <div key={n} className="bg-zinc-900 border border-zinc-800 rounded p-4">
-            <div className="h-2 bg-zinc-800 rounded w-16 mb-3" />
-            <div className="h-6 bg-zinc-800 rounded w-20" />
+          <div key={n} className="bg-surface border border-hairline rounded p-4">
+            <div className="h-2 bg-raised rounded w-16 mb-3" />
+            <div className="h-6 bg-raised rounded w-20" />
           </div>
         ))}
       </div>
-      <div className="bg-zinc-900 border border-zinc-800 rounded p-4 h-64" />
+      <div className="bg-surface border border-hairline rounded p-4 h-64" />
     </div>
   )
 }
@@ -60,17 +60,17 @@ function CurveStats({ run }: { run: RunDetail }) {
 
   const items: { label: string; value: string; cls?: string }[] = [
     { label: 'Start', value: formatCurrency(start) },
-    { label: 'Peak', value: formatCurrency(peak), cls: 'text-emerald-400' },
-    { label: 'Trough', value: formatCurrency(trough), cls: 'text-rose-400' },
+    { label: 'Peak', value: formatCurrency(peak), cls: 'text-positive' },
+    { label: 'Trough', value: formatCurrency(trough), cls: 'text-negative' },
     { label: 'Final', value: formatCurrency(final), cls: returnClass(final - start) },
   ]
 
   return (
-    <div className="mt-4 pt-3 border-t border-zinc-800 grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div className="mt-4 pt-3 border-t border-hairline grid grid-cols-2 sm:grid-cols-4 gap-3">
       {items.map((it) => (
         <div key={it.label}>
-          <dt className="text-[11px] text-zinc-500 uppercase tracking-wider">{it.label}</dt>
-          <dd className={`font-mono text-sm font-medium mt-0.5 ${it.cls ?? 'text-zinc-200'}`}>
+          <dt className="text-[11px] text-ink-subtle uppercase tracking-wider">{it.label}</dt>
+          <dd className={`font-mono text-sm font-medium mt-0.5 ${it.cls ?? 'text-ink'}`}>
             {it.value}
           </dd>
         </div>
@@ -129,9 +129,9 @@ export default function BacktestDetail() {
 
   if (notFound) {
     return (
-      <div className="bg-zinc-900 border border-zinc-800 rounded p-8 text-center">
-        <p className="text-sm text-zinc-400 mb-3">Backtest #{id ?? ''} not found.</p>
-        <Link to="/backtests" className="text-sm text-amber-400 hover:text-amber-300 transition-colors">
+      <div className="bg-surface border border-hairline rounded p-8 text-center">
+        <p className="text-sm text-ink-muted mb-3">Backtest #{id ?? ''} not found.</p>
+        <Link to="/backtests" className="text-sm text-accent hover:text-accent-bright transition-colors">
           ← Back to Backtests
         </Link>
       </div>
@@ -140,9 +140,9 @@ export default function BacktestDetail() {
 
   if (error !== null) {
     return (
-      <div className="bg-zinc-900 border border-zinc-800 rounded p-5">
-        <p role="alert" className="text-sm text-rose-400 mb-3">{error}</p>
-        <Link to="/backtests" className="text-sm text-amber-400 hover:text-amber-300 transition-colors">
+      <div className="bg-surface border border-hairline rounded p-5">
+        <p role="alert" className="text-sm text-negative mb-3">{error}</p>
+        <Link to="/backtests" className="text-sm text-accent hover:text-accent-bright transition-colors">
           ← Back to Backtests
         </Link>
       </div>
@@ -174,17 +174,17 @@ export default function BacktestDetail() {
       <div>
         <Link
           to="/backtests"
-          className="inline-block text-xs text-zinc-500 hover:text-zinc-300 transition-colors mb-2"
+          className="inline-block text-xs text-ink-subtle hover:text-ink-muted transition-colors mb-2"
         >
           ← Backtests
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-xl font-semibold text-zinc-50 font-mono">{run.symbol}</h1>
+              <h1 className="text-xl font-semibold text-ink font-mono">{run.symbol}</h1>
               <RunStatusBadge status={run.status} />
             </div>
-            <p className="text-sm text-zinc-500">
+            <p className="text-sm text-ink-subtle">
               {run.strategy_name} · created {formatDate(run.created_at)}
             </p>
           </div>
@@ -192,10 +192,17 @@ export default function BacktestDetail() {
             <p className={`font-mono text-2xl font-bold ${retClass}`}>
               {formatSignedPercent(run.total_return_pct)}
             </p>
-            <p className="text-xs text-zinc-500 mt-0.5">total return (simulated)</p>
+            <p className="text-xs text-ink-subtle mt-0.5">total return (simulated)</p>
           </div>
         </div>
       </div>
+
+      {/* What you're looking at */}
+      <p className="text-sm text-ink-muted max-w-3xl -mt-4">
+        The full report for one simulated run: how the account grew, how risky the
+        path was, and every trade it made — all net of fees and slippage. Each
+        metric below carries a one-line plain-English definition.
+      </p>
 
       {/* Provenance */}
       <ProvenanceStrip items={provenance} />
@@ -210,7 +217,7 @@ export default function BacktestDetail() {
           title="Equity Curve"
           subtitle="Account value at each bar, marked-to-market including any open position."
         />
-        <div className="bg-zinc-900 border border-zinc-800 rounded p-4">
+        <div className="bg-surface border border-hairline rounded p-4">
           <EquityCurve data={run.equity_curve} />
           <CurveStats run={run} />
         </div>
@@ -223,7 +230,7 @@ export default function BacktestDetail() {
           title={`Trades · ${run.trades.length} fills`}
           subtitle="Every order execution in sequence, with the cost paid on each fill."
         />
-        <div className="bg-zinc-900 border border-zinc-800 rounded p-4">
+        <div className="bg-surface border border-hairline rounded p-4">
           <TradeTable trades={run.trades} />
         </div>
       </section>
@@ -236,14 +243,14 @@ export default function BacktestDetail() {
             title="Strategy Configuration"
             subtitle="The exact parameters this run was executed with."
           />
-          <div className="bg-zinc-900 border border-zinc-800 rounded p-4">
+          <div className="bg-surface border border-hairline rounded p-4">
             <dl className="grid grid-cols-2 sm:grid-cols-3 gap-y-3 gap-x-6">
               {Object.entries(run.config).map(([key, value]) => (
                 <div key={key}>
-                  <dt className="text-[11px] text-zinc-500 uppercase tracking-wider">
+                  <dt className="text-[11px] text-ink-subtle uppercase tracking-wider">
                     {prettyKey(key)}
                   </dt>
-                  <dd className="font-mono text-sm text-zinc-200 mt-0.5">
+                  <dd className="font-mono text-sm text-ink mt-0.5">
                     {renderConfigValue(value)}
                   </dd>
                 </div>

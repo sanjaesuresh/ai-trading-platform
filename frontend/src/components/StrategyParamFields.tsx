@@ -39,7 +39,7 @@ export function StrategyParamFields({
 
   if (properties.length === 0) {
     return (
-      <p className="text-sm text-zinc-500">This strategy has no tunable parameters.</p>
+      <p className="text-sm text-ink-subtle">This strategy has no tunable parameters.</p>
     )
   }
 

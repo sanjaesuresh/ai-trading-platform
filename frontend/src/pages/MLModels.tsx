@@ -6,7 +6,8 @@ import { MLDisclaimer } from '../components/MLDisclaimer'
 import {
   Field,
   inputClass,
-  PageHeader,
+  PageIntro,
+  Term,
   ProvenanceStrip,
   SectionHeader,
   Table,
@@ -25,10 +26,10 @@ import { extractMessage } from '../utils/errors'
 function ModelsTable({ models }: { models: MLModelSummary[] }) {
   if (models.length === 0) {
     return (
-      <div className="bg-zinc-900 border border-zinc-800 rounded p-8 text-center">
-        <p className="text-sm text-zinc-500">
+      <div className="bg-surface border border-hairline rounded p-8 text-center">
+        <p className="text-sm text-ink-subtle">
           No ML models registered yet. Train one via{' '}
-          <code className="font-mono text-xs text-zinc-400">
+          <code className="font-mono text-xs text-ink-muted">
             POST /ml/models
           </code>{' '}
           or use the launcher below to start a walk-forward evaluation (which
@@ -39,10 +40,10 @@ function ModelsTable({ models }: { models: MLModelSummary[] }) {
   }
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded px-4 py-3">
+    <div className="bg-surface border border-hairline rounded px-4 py-3">
       <Table>
         <thead>
-          <tr className="border-b border-zinc-800">
+          <tr className="border-b border-hairline">
             <Th>Model ID</Th>
             <Th>Feature Spec</Th>
             <Th>Symbols</Th>
@@ -56,40 +57,40 @@ function ModelsTable({ models }: { models: MLModelSummary[] }) {
             </Th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-zinc-800/60">
+        <tbody className="divide-y divide-hairline/60">
           {models.map((m) => (
             <tr
               key={m.id}
-              className="hover:bg-zinc-800/30 transition-colors"
+              className="hover:bg-raised/30 transition-colors"
             >
-              <Td mono className="text-zinc-50 max-w-[12rem] truncate">
+              <Td mono className="text-ink max-w-[12rem] truncate">
                 {m.model_id}
               </Td>
-              <Td mono className="text-zinc-500 text-xs">
+              <Td mono className="text-ink-subtle text-xs">
                 {m.feature_spec_version}
               </Td>
-              <Td mono className="text-zinc-400 text-xs">
+              <Td mono className="text-ink-muted text-xs">
                 {m.symbols.join(', ')}
               </Td>
-              <Td mono className="text-zinc-500 text-xs">
+              <Td mono className="text-ink-subtle text-xs">
                 {m.train_start.slice(0, 10)}–{m.train_end.slice(0, 10)}
               </Td>
-              <Td mono align="right" className="text-zinc-400">
+              <Td mono align="right" className="text-ink-muted">
                 {m.horizon}d
               </Td>
-              <Td mono align="right" className="text-zinc-400">
+              <Td mono align="right" className="text-ink-muted">
                 {m.enter_threshold.toFixed(2)}
               </Td>
-              <Td mono align="right" className="text-zinc-400">
+              <Td mono align="right" className="text-ink-muted">
                 {m.calibrated ? 'Yes' : 'No'}
               </Td>
-              <Td mono align="right" className="text-zinc-500">
+              <Td mono align="right" className="text-ink-subtle">
                 {formatDate(m.created_at)}
               </Td>
               <Td align="right">
                 <Link
                   to={`/ml/models/${encodeURIComponent(m.model_id)}`}
-                  className="text-xs text-amber-400 hover:text-amber-300 transition-colors"
+                  className="text-xs text-accent hover:text-accent-bright transition-colors"
                 >
                   Detail →
                 </Link>
@@ -191,7 +192,7 @@ function WalkForwardLauncher() {
 
       <form
         onSubmit={(e) => { void handleSubmit(e) }}
-        className="bg-zinc-900 border border-zinc-800 rounded p-5 space-y-4"
+        className="bg-surface border border-hairline rounded p-5 space-y-4"
         noValidate
       >
         {/* Symbol inputs */}
@@ -336,7 +337,7 @@ function WalkForwardLauncher() {
         </div>
 
         {formErr && (
-          <p role="alert" className="text-sm text-rose-400">
+          <p role="alert" className="text-sm text-negative">
             {formErr}
           </p>
         )}
@@ -344,7 +345,7 @@ function WalkForwardLauncher() {
         <button
           type="submit"
           disabled={submitting}
-          className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-700 disabled:text-zinc-500 text-zinc-950 text-sm font-semibold px-4 py-2 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+          className="inline-flex items-center gap-2 bg-accent hover:bg-accent-bright disabled:bg-raised disabled:text-ink-subtle text-canvas text-sm font-semibold px-4 py-2 rounded transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           {submitting ? 'Enqueuing…' : 'Run Walk-Forward'}
         </button>
@@ -378,17 +379,25 @@ export default function MLModels() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="ML Models"
-        subtitle="Registered LightGBM classifiers. Each model is trained on a historical in-sample window, calibrated, and pinned by artifact hash for reproducibility. All results are simulated — not financial advice."
+      <PageIntro
+        title="Machine-learning models"
+        icon="🤖"
+        eyebrow="ML"
         meta={
           !isLoading && models.length > 0 ? (
-            <span className="font-mono text-sm text-zinc-500">
+            <span className="font-mono text-sm text-ink-subtle">
               {models.length} model{models.length === 1 ? '' : 's'}
             </span>
           ) : undefined
         }
-      />
+      >
+        These are experimental models that try to learn patterns from history,
+        rather than following hand-written rules. Each one is trained on a past
+        window, <Term id="calibration">calibrated</Term> so its confidence is
+        meaningful, and pinned to an exact version so results can be reproduced.
+        Treat them as research, not predictions — all results are simulated and not
+        financial advice.
+      </PageIntro>
 
       <MLDisclaimer />
 
@@ -396,14 +405,14 @@ export default function MLModels() {
 
       {isLoading ? (
         <div
-          className="bg-zinc-900 border border-zinc-800 rounded p-8 text-center motion-safe:animate-pulse"
+          className="bg-surface border border-hairline rounded p-8 text-center motion-safe:animate-pulse"
           aria-busy="true"
         >
-          <p className="text-sm text-zinc-500">Loading models…</p>
+          <p className="text-sm text-ink-subtle">Loading models…</p>
         </div>
       ) : error ? (
-        <div className="bg-zinc-900 border border-zinc-800 rounded p-5">
-          <p role="alert" className="text-sm text-rose-400">
+        <div className="bg-surface border border-hairline rounded p-5">
+          <p role="alert" className="text-sm text-negative">
             {extractMessage(error)}
           </p>
         </div>

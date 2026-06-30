@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { listEvaluations } from '../api/evaluations'
 import type { EvaluationSummary } from '../types/evaluation'
 import { RunStatusBadge } from '../components/RunStatusBadge'
-import { PageHeader, Table, Th, Td } from '../components/ui'
+import { PageIntro, Table, Th, Td, Term } from '../components/ui'
 import { usePolling } from '../hooks/usePolling'
 import { formatDate } from '../utils/format'
 import { extractMessage } from '../utils/errors'
@@ -39,41 +39,49 @@ export default function Evaluations() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageIntro
         title="Evaluations"
-        subtitle="Parameter sweeps (in-sample only) and walk-forward runs (out-of-sample, baseline-compared). Out-of-sample evidence is the only kind that counts. Simulated only — not financial advice."
+        icon="🔍"
+        eyebrow="Evaluations"
         meta={
           list.length > 0 ? (
-            <span className="font-mono text-sm text-zinc-500">
+            <span className="font-mono text-sm text-ink-subtle">
               {list.length} evaluation{list.length === 1 ? '' : 's'}
             </span>
           ) : undefined
         }
-      />
+      >
+        A single backtest is easy to fool yourself with. Evaluations are the
+        stress tests: a <Term id="parameter_sweep">parameter sweep</Term> tries many
+        settings, and a <Term id="walk_forward">walk-forward test</Term> checks a
+        strategy on data it was never tuned on. The{' '}
+        <Term id="out_of_sample">out-of-sample</Term> result is the only one that
+        really counts. Simulated only — not financial advice.
+      </PageIntro>
 
       {isLoading ? (
         <div
-          className="bg-zinc-900 border border-zinc-800 rounded p-8 text-center motion-safe:animate-pulse"
+          className="bg-surface border border-hairline rounded p-8 text-center motion-safe:animate-pulse"
           aria-busy="true"
         >
-          <p className="text-sm text-zinc-500">Loading evaluations…</p>
+          <p className="text-sm text-ink-subtle">Loading evaluations…</p>
         </div>
       ) : error ? (
-        <div className="bg-zinc-900 border border-zinc-800 rounded p-5">
-          <p role="alert" className="text-sm text-rose-400">{extractMessage(error)}</p>
+        <div className="bg-surface border border-hairline rounded p-5">
+          <p role="alert" className="text-sm text-negative">{extractMessage(error)}</p>
         </div>
       ) : list.length === 0 ? (
-        <div className="bg-zinc-900 border border-zinc-800 rounded p-8 text-center">
-          <p className="text-sm text-zinc-500">
+        <div className="bg-surface border border-hairline rounded p-8 text-center">
+          <p className="text-sm text-ink-subtle">
             No evaluations yet. Trigger a sweep or walk-forward via the API
             (POST /evaluations/sweep or /walk-forward).
           </p>
         </div>
       ) : (
-        <div className="bg-zinc-900 border border-zinc-800 rounded px-4 py-3">
+        <div className="bg-surface border border-hairline rounded px-4 py-3">
           <Table>
             <thead>
-              <tr className="border-b border-zinc-800">
+              <tr className="border-b border-hairline">
                 <Th>ID</Th>
                 <Th>Kind</Th>
                 <Th>Symbol</Th>
@@ -84,20 +92,20 @@ export default function Evaluations() {
                 <Th align="right"><span className="sr-only">View</span></Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800/60">
+            <tbody className="divide-y divide-hairline/60">
               {list.map((r) => (
-                <tr key={r.id} className="hover:bg-zinc-800/30 transition-colors">
-                  <Td mono className="text-zinc-500">#{r.id}</Td>
-                  <Td className="text-zinc-300">{kindLabel(r.kind)}</Td>
-                  <Td mono className="text-zinc-50">{r.symbol}</Td>
-                  <Td className="text-zinc-400 text-xs">{r.strategy_name}</Td>
-                  <Td mono className="text-zinc-400 text-xs">{r.objective}</Td>
+                <tr key={r.id} className="hover:bg-raised/30 transition-colors">
+                  <Td mono className="text-ink-subtle">#{r.id}</Td>
+                  <Td className="text-ink-muted">{kindLabel(r.kind)}</Td>
+                  <Td mono className="text-ink">{r.symbol}</Td>
+                  <Td className="text-ink-muted text-xs">{r.strategy_name}</Td>
+                  <Td mono className="text-ink-muted text-xs">{r.objective}</Td>
                   <Td><RunStatusBadge status={r.status} /></Td>
-                  <Td mono align="right" className="text-zinc-500">{formatDate(r.created_at)}</Td>
+                  <Td mono align="right" className="text-ink-subtle">{formatDate(r.created_at)}</Td>
                   <Td align="right">
                     <Link
                       to={isMLKind(r.kind) ? `/ml/evaluations/${r.id}` : `/evaluations/${r.id}`}
-                      className="text-xs text-amber-400 hover:text-amber-300 transition-colors"
+                      className="text-xs text-accent hover:text-accent-bright transition-colors"
                     >
                       View →
                     </Link>
