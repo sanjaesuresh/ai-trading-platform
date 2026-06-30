@@ -6,6 +6,8 @@ import NewRun from './pages/NewRun'
 import Evaluations from './pages/Evaluations'
 import EvaluationDetail from './pages/EvaluationDetail'
 import Ingestion from './pages/Ingestion'
+import PaperTrading from './pages/PaperTrading'
+import PaperDeploymentDetail from './pages/PaperDeploymentDetail'
 
 function NavBar() {
   const linkCls = ({ isActive }: { isActive: boolean }) =>
@@ -44,6 +46,11 @@ function NavBar() {
               </NavLink>
             </li>
             <li>
+              <NavLink to="/paper" className={linkCls}>
+                Paper
+              </NavLink>
+            </li>
+            <li>
               <NavLink to="/ingestion" className={linkCls}>
                 Ingestion
               </NavLink>
@@ -65,9 +72,11 @@ function DisclaimerBanner() {
       <p className="text-xs text-amber-300/70 text-center max-w-6xl mx-auto">
         All results are{' '}
         <strong className="font-medium text-amber-300/90">
-          simulated backtests on historical data
+          simulated
         </strong>
-        . Not financial advice. Past performance does not guarantee future results.
+        {' '}— backtests on historical data, or forward paper trading on
+        Alpaca&apos;s paper endpoint. No real money. Not financial advice. Past
+        performance does not guarantee future results.
       </p>
     </div>
   )
@@ -88,6 +97,8 @@ export default function App() {
             <Route path="/evaluations" element={<Evaluations />} />
             <Route path="/evaluations/:id" element={<EvaluationDetail />} />
             <Route path="/ingestion" element={<Ingestion />} />
+            <Route path="/paper" element={<PaperTrading />} />
+            <Route path="/paper/:id" element={<PaperDeploymentDetail />} />
           </Routes>
         </main>
       </div>

@@ -5,8 +5,9 @@ loads historical market data, runs strategies over it, backtests them with
 realistic fees and slippage, computes performance metrics, persists results, and
 visualizes them in a web UI.
 
-> **Simulated only — not financial advice.** Every result is a backtest over
-> historical data. This is a research and education tool. It does not trade real
+> **Simulated only — not financial advice.** All results are simulated — either
+> backtests over historical data or forward paper trading against Alpaca's paper
+> endpoint. This is a research and education tool. It does not trade real
 > money in its current scope, and **nothing here implies real or guaranteed
 > returns.** The name says "AI," but that is the destination, not the start: the
 > honest path is to prove the data + backtesting + execution plumbing with simple
@@ -41,8 +42,8 @@ This starts:
 - **Postgres** on `:5432`
 - **Redis** on `:6379` — the background-job broker (Phase 2 M6)
 - **Backend** (FastAPI) on `:8000` — applies migrations, then serves
-- **Worker** (ARQ) — runs background ingestion / evaluation jobs and the nightly
-  incremental-ingest cron
+- **Worker** (ARQ) — runs background ingestion / evaluation jobs, the nightly
+  incremental-ingest cron, and the daily paper-trading submit / reconcile crons
 - **Frontend** (Vite) on `:5173`
 
 Open http://localhost:5173, then use the dashboard to run the sample backtest.
@@ -125,6 +126,52 @@ Routes never touch ARQ directly; they go through a one-file enqueue seam
 secrets in source. Unit tests never need a live Redis — task functions are tested
 by calling them directly; a live-Redis round trip is a manual integration step.
 
+## Paper trading on a shared portfolio core (Phase 3)
+
+Everything above runs *over history*. Phase 3 runs a strategy **forward** against
+a broker, in pure simulation. A **deployment** binds a registered strategy to a
+basket of symbols, a simulated capital pool, and portfolio risk limits; a daily
+job pulls the latest bars, asks one shared **portfolio execution core** for target
+orders, submits them to **Alpaca paper trading**, and reconciles the broker's
+fills, positions, and cash back into the platform.
+
+The load-bearing idea is **live must equal backtested**: the same pure core
+(`backtesting/portfolio_core.py`) is driven by *both* a multi-symbol backtest and
+the live runner, so what you see in paper is exactly what you can backtest. A
+multi-symbol portfolio backtest is judged out-of-sample, net of fees, against both
+the rule-based baseline **and** the allocator-off single-position basket — so the
+cross-symbol allocator has to earn its added complexity.
+
+**Paper only, structurally.** Orders go to Alpaca's *paper* endpoint only; the
+base URL is hardcoded and guarded, the live (real-money) endpoint is unreachable,
+and a test asserts it. Paper trading gets the **strongest** simulated-only
+disclaimer treatment in the app — it trades no real money and implies no returns.
+
+- **Set keys** (only needed for a real paper run): put `ALPACA_API_KEY` and
+  `ALPACA_SECRET_KEY` in the root `.env` (free paper keys from alpaca.markets).
+  Without them the tested `FakeBroker` is the default and the runner skips cleanly.
+- **Create / manage** via `POST /paper/deployments` (validated strategy, basket,
+  capital, and risk limits — leverage and negative costs are rejected), `GET
+  /paper/deployments`, `PATCH …/{id}`, and `POST …/{id}/enable`. Enabling one
+  deployment disables the rest (one shared paper account, no commingled cash).
+- **Run** with `POST /paper/deployments/{id}/run` (enqueues the daily cycle). The
+  worker also runs it on a schedule: a pre-open **submit** pass places
+  opening-auction orders, and a next-morning **reconcile** pass records fills and
+  attributes slippage against the backtest's modeled open once that bar is ingested.
+- **Read** the dashboard with `GET /paper/deployments/{id}/portfolio` (equity
+  curve, positions, orders, fills, reconciliation log, slippage distribution, kill
+  status) and the **live-vs-backtest comparison** with
+  `GET /paper/deployments/{id}/comparison`.
+- **Kill switches.** A per-deployment enable flag, a portfolio max-drawdown kill
+  (flatten + halt), and a global kill switch (`GET`/`POST /paper/kill-switch`) that
+  halts all new orders.
+
+The residual backtest↔paper gap is *measured, not hidden*: every fill stores the
+realized price, the modeled open, and the cost-signed slippage delta, surfaced as
+a distribution in the comparison view. The larger paper↔live gap (no dividends,
+market impact, latency, or queue position in paper) is documented as known and
+unmodeled. Still simulated only — not financial advice.
+
 ## Backend tests (no database needed)
 
 The five core test modules are pure logic:
@@ -169,6 +216,13 @@ page (a site-wide banner plus an inline note on each results-bearing surface):
 - **Ingestion** (`/ingestion`) — trigger a backfill or incremental ingest and
   watch the audit trail (provider, symbol, range, rows fetched/written, status,
   error), polling while any row is in flight.
+- **Paper** (`/paper`) — create a deployment (strategy + basket + capital + risk
+  limits), trip the global kill switch, and open a deployment's portfolio
+  dashboard: the live paper equity curve, open positions, orders, fills with their
+  slippage attribution, the reconciliation log, and the **live-vs-backtest
+  comparison** (the backtested expectation beside the live results, with the
+  measured fill-model gap and the known unmodeled biases stated inline). Every
+  paper surface carries the strongest simulated-only / paper-only disclaimer.
 
 ## Layout
 

@@ -19,6 +19,14 @@ const CONFIG: Record<string, { label: string; cls: string }> = {
     label: 'Running',
     cls: 'bg-amber-950 text-amber-400 border border-amber-800 motion-safe:animate-pulse',
   },
+  active: {
+    label: 'Active',
+    cls: 'bg-emerald-950 text-emerald-400 border border-emerald-800',
+  },
+  halted: {
+    label: 'Halted',
+    cls: 'bg-rose-950 text-rose-400 border border-rose-800',
+  },
 }
 
 export function RunStatusBadge({ status }: RunStatusBadgeProps) {
