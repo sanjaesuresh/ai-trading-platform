@@ -1,102 +1,69 @@
 import type { RunDetail } from '../types/backtest'
-import {
-  formatCurrency,
-  formatPercent,
-  formatFraction,
-  formatProfitFactor,
-  returnClass,
-} from '../utils/format'
+import { Stat, StatGrid, SectionHeader } from './ui'
+import { MetricStat } from './MetricStat'
+import { formatCurrency } from '../utils/format'
 
 interface MetricsCardsProps {
   run: RunDetail
 }
 
-interface Card {
-  label: string
-  value: string
-  cls: string
-  note?: string
-}
-
+/**
+ * Full performance readout for a backtest, grouped so the reader can scan by
+ * concern: how capital grew, how risky the path was, and how the individual
+ * trades behaved. Every value is defined inline via the metric definitions.
+ */
 export function MetricsCards({ run }: MetricsCardsProps) {
-  const { metrics, final_equity } = run
-
-  const sharpeClass =
-    metrics.sharpe_ratio >= 1
-      ? 'text-emerald-400'
-      : metrics.sharpe_ratio < 0
-        ? 'text-rose-400'
-        : 'text-zinc-50'
-
-  const pfClass =
-    metrics.profit_factor >= 1.5
-      ? 'text-emerald-400'
-      : metrics.profit_factor < 1
-        ? 'text-rose-400'
-        : 'text-zinc-50'
-
-  const cards: Card[] = [
-    {
-      label: 'Total Return',
-      value:
-        (metrics.total_return_pct > 0 ? '+' : '') +
-        formatPercent(metrics.total_return_pct),
-      cls: returnClass(metrics.total_return_pct),
-    },
-    {
-      label: 'Final Equity',
-      value: formatCurrency(final_equity),
-      cls: 'text-zinc-50',
-    },
-    {
-      label: 'Max Drawdown',
-      value: `−${formatPercent(metrics.max_drawdown_pct)}`,
-      cls: 'text-rose-400',
-      note: 'peak-to-trough',
-    },
-    {
-      label: 'Sharpe Ratio',
-      value: metrics.sharpe_ratio.toFixed(2),
-      cls: sharpeClass,
-      note: 'risk-free rate 0',
-    },
-    {
-      label: 'Win Rate',
-      value: formatFraction(metrics.win_rate),
-      cls: 'text-zinc-50',
-      note: `${metrics.num_round_trips} round trips`,
-    },
-    {
-      label: 'Profit Factor',
-      value: formatProfitFactor(metrics.profit_factor),
-      cls: pfClass,
-    },
-    {
-      label: 'Fills',
-      value: String(metrics.num_fills),
-      cls: 'text-zinc-50',
-      note: `${metrics.num_round_trips} round trips`,
-    },
-  ]
+  const m = run.metrics
 
   return (
-    <dl className="grid grid-cols-2 md:grid-cols-4 gap-3">
-      {cards.map((card) => (
-        <div
-          key={card.label}
-          className="bg-zinc-900 border border-zinc-800 rounded p-4"
-        >
-          <dt className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">
-            {card.label}
-          </dt>
-          <dd className={`text-xl font-mono font-semibold ${card.cls}`}>
-            {card.value}
-          </dd>
-          {card.note !== undefined && (
-            <p className="text-xs text-zinc-600 mt-1">{card.note}</p>
-          )}
-        </div>
-      ))}
-    </dl>
+    <div className="space-y-6">
+      <section aria-labelledby="metrics-returns">
+        <SectionHeader
+          id="metrics-returns"
+          title="Returns"
+          subtitle="Growth of capital over the period, net of fees and slippage."
+        />
+        <StatGrid>
+          <MetricStat metricKey="total_return_pct" value={m.total_return_pct} />
+          <MetricStat metricKey="annualized_return_pct" value={m.annualized_return_pct} />
+          <Stat
+            label="Final Equity"
+            value={formatCurrency(run.final_equity)}
+            hint={`From ${formatCurrency(run.initial_capital)} initial capital.`}
+          />
+          <MetricStat metricKey="exposure_pct" value={m.exposure_pct} />
+        </StatGrid>
+      </section>
+
+      <section aria-labelledby="metrics-risk">
+        <SectionHeader
+          id="metrics-risk"
+          title="Risk"
+          subtitle="How bumpy the ride was, and whether gains outweighed losses."
+        />
+        <StatGrid>
+          <MetricStat metricKey="max_drawdown_pct" value={m.max_drawdown_pct} />
+          <MetricStat metricKey="sharpe_ratio" value={m.sharpe_ratio} />
+          <MetricStat metricKey="sortino_ratio" value={m.sortino_ratio} />
+          <MetricStat metricKey="profit_factor" value={m.profit_factor} />
+        </StatGrid>
+      </section>
+
+      <section aria-labelledby="metrics-trades">
+        <SectionHeader
+          id="metrics-trades"
+          title="Trade Stats"
+          subtitle="Behavior of individual round-trip trades (entry paired with exit)."
+        />
+        <StatGrid cols="grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+          <MetricStat metricKey="win_rate" value={m.win_rate} />
+          <MetricStat metricKey="num_round_trips" value={m.num_round_trips} />
+          <MetricStat metricKey="avg_win" value={m.avg_win} />
+          <MetricStat metricKey="avg_loss" value={m.avg_loss} />
+          <MetricStat metricKey="avg_holding_days" value={m.avg_holding_days} />
+          <MetricStat metricKey="num_fills" value={m.num_fills} />
+        </StatGrid>
+      </section>
+    </div>
   )
 }

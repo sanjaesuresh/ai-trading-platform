@@ -14,6 +14,13 @@ export function formatPercent(value: number): string {
   return `${value.toFixed(2)}%`
 }
 
+/** Percent with an explicit sign (e.g. 15.3 → "+15.30%", -4 → "−4.00%"). */
+export function formatSignedPercent(value: number): string {
+  if (value > 0) return `+${value.toFixed(2)}%`
+  if (value < 0) return `−${Math.abs(value).toFixed(2)}%`
+  return `${value.toFixed(2)}%`
+}
+
 /** Format a 0..1 fraction as a percentage (e.g. 0.6 → "60.0%"). */
 export function formatFraction(value: number): string {
   return `${(value * 100).toFixed(1)}%`

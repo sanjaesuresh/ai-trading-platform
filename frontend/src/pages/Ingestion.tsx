@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { listIngestionRuns, triggerIngestion } from '../api/ingestion'
 import type { IngestionRunSummary } from '../types/ingestion'
 import { RunStatusBadge } from '../components/RunStatusBadge'
+import { PageHeader, SectionHeader, Field, inputClass, Table, Th, Td } from '../components/ui'
 import { usePolling } from '../hooks/usePolling'
 import { formatDate } from '../utils/format'
 import { extractMessage } from '../utils/errors'
@@ -15,6 +16,15 @@ function rangeLabel(run: IngestionRunSummary): string {
   const start = run.range_start ? formatDate(run.range_start) : '?'
   const end = run.range_end ? formatDate(run.range_end) : '?'
   return `${start} → ${end}`
+}
+
+function durationLabel(run: IngestionRunSummary): string {
+  if (!run.finished_at) return isActive(run.status) ? '…' : '—'
+  const ms = new Date(run.finished_at).getTime() - new Date(run.created_at).getTime()
+  if (ms < 1000) return `${ms}ms`
+  const s = ms / 1000
+  if (s < 60) return `${s.toFixed(1)}s`
+  return `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`
 }
 
 export default function Ingestion() {
@@ -61,53 +71,52 @@ export default function Ingestion() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-50">Data Ingestion</h1>
-        <p className="text-sm text-zinc-500 mt-1">
-          Trigger a market-data backfill or incremental update, and watch the audit
-          trail. Simulated research tool — not financial advice.
-        </p>
-      </div>
+      <PageHeader
+        title="Data Ingestion"
+        subtitle="Trigger a market-data backfill or incremental update, then watch the audit trail as each symbol is fetched and written. Simulated research tool — not financial advice."
+      />
 
       <section aria-labelledby="trigger-heading">
-        <h2
+        <SectionHeader
           id="trigger-heading"
-          className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3"
-        >
-          Trigger a Run
-        </h2>
+          title="Trigger a Run"
+          subtitle="Backfill pulls full history; incremental adds only bars newer than what's stored."
+        />
         <form
           onSubmit={(e) => void handleTrigger(e)}
           className="bg-zinc-900 border border-zinc-800 rounded p-5 space-y-4"
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="mode" className="block text-xs text-zinc-400 font-medium mb-1">
-                Mode
-              </label>
+            <Field
+              label="Mode"
+              htmlFor="mode"
+              hint="Backfill is a full re-pull; incremental is a fast top-up."
+            >
               <select
                 id="mode"
                 value={mode}
                 onChange={(e) => setMode(e.target.value as 'incremental' | 'backfill')}
-                className="w-full bg-zinc-950 border border-zinc-700 rounded px-2 py-1.5 text-sm font-mono text-zinc-50 focus:border-amber-400 focus:outline-none"
+                className={inputClass}
               >
                 <option value="incremental">incremental (only new bars)</option>
                 <option value="backfill">backfill (full history)</option>
               </select>
-            </div>
-            <div>
-              <label htmlFor="symbols" className="block text-xs text-zinc-400 font-medium mb-1">
-                Symbols (optional)
-              </label>
+            </Field>
+            <Field
+              label="Symbols"
+              htmlFor="symbols"
+              unit="optional"
+              hint="Comma-separated. Leave empty to use the configured universe."
+            >
               <input
                 id="symbols"
                 type="text"
                 value={symbolsText}
                 onChange={(e) => setSymbolsText(e.target.value)}
-                placeholder="e.g. SPY, AAPL — empty = configured universe"
-                className="w-full bg-zinc-950 border border-zinc-700 rounded px-2 py-1.5 text-sm font-mono text-zinc-50 focus:border-amber-400 focus:outline-none"
+                placeholder="e.g. SPY, AAPL"
+                className={inputClass}
               />
-            </div>
+            </Field>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -120,81 +129,77 @@ export default function Ingestion() {
               {triggering ? 'Queuing…' : 'Run Ingestion'}
             </button>
             {triggerMsg && (
-              <p role="status" className="text-sm text-emerald-400">
-                {triggerMsg}
-              </p>
+              <p role="status" className="text-sm text-emerald-400">{triggerMsg}</p>
             )}
           </div>
           {triggerErr !== null && (
-            <p role="alert" className="text-sm text-rose-400">
-              {triggerErr}
-            </p>
+            <p role="alert" className="text-sm text-rose-400">{triggerErr}</p>
           )}
         </form>
       </section>
 
       <section aria-labelledby="audit-heading">
-        <h2
+        <SectionHeader
           id="audit-heading"
-          className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3"
-        >
-          Audit Trail
-        </h2>
+          title="Audit Trail"
+          subtitle="Every ingest, newest first — rows fetched from the provider vs. rows actually written after de-duplication and quality checks."
+          right={
+            list.length > 0 ? (
+              <span className="font-mono text-xs text-zinc-500">{list.length} runs</span>
+            ) : undefined
+          }
+        />
         {loading && data === null ? (
           <div className="bg-zinc-900 border border-zinc-800 rounded p-8 text-center motion-safe:animate-pulse" aria-busy="true">
             <p className="text-sm text-zinc-500">Loading ingestion history…</p>
           </div>
         ) : error ? (
           <div className="bg-zinc-900 border border-zinc-800 rounded p-5">
-            <p role="alert" className="text-sm text-rose-400">
-              {extractMessage(error)}
-            </p>
+            <p role="alert" className="text-sm text-rose-400">{extractMessage(error)}</p>
           </div>
         ) : list.length === 0 ? (
           <div className="bg-zinc-900 border border-zinc-800 rounded p-8 text-center">
-            <p className="text-sm text-zinc-500">
-              No ingestion runs yet. Trigger one above.
-            </p>
+            <p className="text-sm text-zinc-500">No ingestion runs yet. Trigger one above.</p>
           </div>
         ) : (
-          <div className="bg-zinc-900 border border-zinc-800 rounded overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="bg-zinc-900 border border-zinc-800 rounded px-4 py-3">
+            <Table>
               <thead>
-                <tr className="text-left text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800">
-                  <th className="px-3 py-2 font-medium">ID</th>
-                  <th className="px-3 py-2 font-medium">Provider</th>
-                  <th className="px-3 py-2 font-medium">Symbol</th>
-                  <th className="px-3 py-2 font-medium">Range</th>
-                  <th className="px-3 py-2 font-medium">Fetched</th>
-                  <th className="px-3 py-2 font-medium">Written</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
-                  <th className="px-3 py-2 font-medium">Created</th>
+                <tr className="border-b border-zinc-800">
+                  <Th>ID</Th>
+                  <Th>Provider</Th>
+                  <Th>Symbol</Th>
+                  <Th>Range</Th>
+                  <Th align="right" sub="rows">Fetched</Th>
+                  <Th align="right" sub="rows">Written</Th>
+                  <Th align="right">Duration</Th>
+                  <Th>Status</Th>
+                  <Th align="right">Created</Th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-zinc-800/60">
                 {list.map((r) => (
-                  <tr key={r.id} className="border-b border-zinc-800/60 last:border-0 align-top">
-                    <td className="px-3 py-2 font-mono text-zinc-400">#{r.id}</td>
-                    <td className="px-3 py-2 text-zinc-400">{r.provider}</td>
-                    <td className="px-3 py-2 text-zinc-50">{r.symbol}</td>
-                    <td className="px-3 py-2 font-mono text-xs text-zinc-500">{rangeLabel(r)}</td>
-                    <td className="px-3 py-2 font-mono text-zinc-400">{r.rows_fetched ?? '—'}</td>
-                    <td className="px-3 py-2 font-mono text-zinc-400">{r.rows_written ?? '—'}</td>
-                    <td className="px-3 py-2">
+                  <tr key={r.id} className="align-top hover:bg-zinc-800/30 transition-colors">
+                    <Td mono className="text-zinc-400">#{r.id}</Td>
+                    <Td className="text-zinc-400">{r.provider}</Td>
+                    <Td mono className="text-zinc-50">{r.symbol}</Td>
+                    <Td mono className="text-zinc-500">{rangeLabel(r)}</Td>
+                    <Td mono align="right" className="text-zinc-400">{r.rows_fetched ?? '—'}</Td>
+                    <Td mono align="right" className="text-zinc-200">{r.rows_written ?? '—'}</Td>
+                    <Td mono align="right" className="text-zinc-500">{durationLabel(r)}</Td>
+                    <Td>
                       <RunStatusBadge status={r.status} />
                       {r.error && (
                         <p className="text-xs text-rose-400 mt-1 max-w-xs" title={r.error}>
                           {r.error}
                         </p>
                       )}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-xs text-zinc-500">
-                      {formatDate(r.created_at)}
-                    </td>
+                    </Td>
+                    <Td mono align="right" className="text-zinc-500">{formatDate(r.created_at)}</Td>
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </div>
         )}
       </section>

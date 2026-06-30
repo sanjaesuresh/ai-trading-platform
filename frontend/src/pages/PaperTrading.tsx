@@ -13,6 +13,7 @@ import {
 } from '../components/StrategyParamFields'
 import { PaperDisclaimer } from '../components/PaperDisclaimer'
 import { RunStatusBadge } from '../components/RunStatusBadge'
+import { PageHeader, SectionHeader, Field, inputClass, Table, Th, Td } from '../components/ui'
 import type { StrategyInfo } from '../types/strategy'
 import type {
   DeploymentRiskConfig,
@@ -39,22 +40,23 @@ const DEFAULT_CONFIG: DeploymentRiskConfig = {
 interface RiskField {
   key: keyof DeploymentRiskConfig
   label: string
+  unit?: string
   note?: string
   nullable?: boolean
 }
 
 const RISK_FIELDS: RiskField[] = [
-  { key: 'gross_exposure_cap', label: 'Gross exposure cap', note: '1.0 = no leverage' },
-  { key: 'max_open_positions', label: 'Max open positions' },
-  { key: 'max_position_pct', label: 'Max position fraction', note: 'per symbol' },
-  { key: 'max_drawdown_cutoff_pct', label: 'Drawdown kill', note: 'flatten + halt past this', nullable: true },
-  { key: 'target_vol', label: 'Target volatility', note: 'blank = flat sizing', nullable: true },
-  { key: 'vol_lookback', label: 'Vol lookback (bars)' },
-  { key: 'fee_bps', label: 'Fee (bps)' },
-  { key: 'slippage_bps', label: 'Slippage (bps)' },
-  { key: 'per_order_notional_cap', label: 'Per-order notional cap', note: 'blank = none', nullable: true },
-  { key: 'stop_loss_pct', label: 'Stop loss', note: 'blank = none', nullable: true },
-  { key: 'take_profit_pct', label: 'Take profit', note: 'blank = none', nullable: true },
+  { key: 'gross_exposure_cap', label: 'Gross Exposure Cap', unit: '×', note: '1.0 = no leverage' },
+  { key: 'max_open_positions', label: 'Max Open Positions', unit: 'count' },
+  { key: 'max_position_pct', label: 'Max Position', unit: 'fraction', note: 'Per symbol' },
+  { key: 'max_drawdown_cutoff_pct', label: 'Drawdown Kill', unit: 'fraction', note: 'Flatten + halt past this', nullable: true },
+  { key: 'target_vol', label: 'Target Volatility', unit: 'annual', note: 'Blank = flat sizing', nullable: true },
+  { key: 'vol_lookback', label: 'Vol Lookback', unit: 'bars' },
+  { key: 'fee_bps', label: 'Fee', unit: 'bps' },
+  { key: 'slippage_bps', label: 'Slippage', unit: 'bps' },
+  { key: 'per_order_notional_cap', label: 'Per-Order Notional Cap', unit: 'USD', note: 'Blank = none', nullable: true },
+  { key: 'stop_loss_pct', label: 'Stop Loss', unit: 'fraction', note: 'Blank = none', nullable: true },
+  { key: 'take_profit_pct', label: 'Take Profit', unit: 'fraction', note: 'Blank = none', nullable: true },
 ]
 
 export default function PaperTrading() {
@@ -156,34 +158,29 @@ export default function PaperTrading() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-50">Paper Trading</h1>
-        <p className="text-sm text-zinc-500 mt-1">
-          Run a strategy forward across a basket against Alpaca paper, on the same
-          portfolio core you can backtest.
-        </p>
-      </div>
+      <PageHeader
+        title="Paper Trading"
+        subtitle="Run a strategy forward across a basket against Alpaca's paper endpoint, on the same portfolio core you backtest with. Simulated only — no real money."
+      />
 
       <PaperDisclaimer />
 
       {loadErr && (
-        <p role="alert" className="text-sm text-rose-400">
-          {loadErr}
-        </p>
+        <p role="alert" className="text-sm text-rose-400">{loadErr}</p>
       )}
 
       <section aria-labelledby="kill-heading">
-        <h2 id="kill-heading" className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3">
-          Global Kill Switch
-        </h2>
+        <SectionHeader
+          id="kill-heading"
+          title="Global Kill Switch"
+          subtitle="A single master stop. While active, no deployment can submit a new order."
+        />
         <div className="bg-zinc-900 border border-zinc-800 rounded p-4 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-zinc-400">
             {kill === null ? (
               <span className="text-zinc-500">Loading kill-switch state…</span>
             ) : kill.active ? (
-              <span className="text-rose-400 font-medium">
-                ACTIVE — all new orders are halted.
-              </span>
+              <span className="text-rose-400 font-medium">ACTIVE — all new orders are halted.</span>
             ) : (
               'Inactive. Tripping it halts all new orders across every deployment.'
             )}
@@ -200,28 +197,23 @@ export default function PaperTrading() {
                 : 'bg-rose-500 text-zinc-50 hover:bg-rose-400'
             }`}
           >
-            {kill === null
-              ? 'Loading…'
-              : kill.active
-                ? 'Clear kill switch'
-                : 'Trip kill switch'}
+            {kill === null ? 'Loading…' : kill.active ? 'Clear kill switch' : 'Trip kill switch'}
           </button>
         </div>
       </section>
 
       <section aria-labelledby="create-heading">
-        <h2 id="create-heading" className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3">
-          Create a Deployment
-        </h2>
+        <SectionHeader
+          id="create-heading"
+          title="Create a Deployment"
+          subtitle="Define the basket, the strategy, and the risk limits the portfolio core enforces on every order."
+        />
         <form
           onSubmit={(e) => void handleCreate(e)}
           className="bg-zinc-900 border border-zinc-800 rounded p-5 space-y-4"
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="dep-name" className="block text-xs text-zinc-400 font-medium mb-1">
-                Name
-              </label>
+            <Field label="Name" htmlFor="dep-name">
               <input
                 id="dep-name"
                 type="text"
@@ -229,43 +221,32 @@ export default function PaperTrading() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Large-cap trend basket"
-                className="w-full bg-zinc-950 border border-zinc-700 rounded px-2 py-1.5 text-sm font-mono text-zinc-50 focus:border-amber-400 focus:outline-none"
+                className={inputClass}
               />
-            </div>
-            <div>
-              <label htmlFor="dep-strategy" className="block text-xs text-zinc-400 font-medium mb-1">
-                Strategy
-              </label>
+            </Field>
+            <Field label="Strategy" htmlFor="dep-strategy">
               <select
                 id="dep-strategy"
                 value={strategyName}
                 onChange={(e) => onSelectStrategy(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-700 rounded px-2 py-1.5 text-sm font-mono text-zinc-50 focus:border-amber-400 focus:outline-none"
+                className={inputClass}
               >
                 {strategies.map((s) => (
-                  <option key={s.name} value={s.name}>
-                    {s.name}
-                  </option>
+                  <option key={s.name} value={s.name}>{s.name}</option>
                 ))}
               </select>
-            </div>
-            <div>
-              <label htmlFor="dep-symbols" className="block text-xs text-zinc-400 font-medium mb-1">
-                Symbols
-              </label>
+            </Field>
+            <Field label="Symbols" htmlFor="dep-symbols" hint="Comma-separated basket of tickers.">
               <input
                 id="dep-symbols"
                 type="text"
                 value={symbolsText}
                 onChange={(e) => setSymbolsText(e.target.value)}
-                placeholder="comma-separated, e.g. SPY, AAPL, MSFT"
-                className="w-full bg-zinc-950 border border-zinc-700 rounded px-2 py-1.5 text-sm font-mono text-zinc-50 focus:border-amber-400 focus:outline-none"
+                placeholder="e.g. SPY, AAPL, MSFT"
+                className={inputClass}
               />
-            </div>
-            <div>
-              <label htmlFor="dep-capital" className="block text-xs text-zinc-400 font-medium mb-1">
-                Starting capital (USD)
-              </label>
+            </Field>
+            <Field label="Starting Capital" htmlFor="dep-capital" unit="USD">
               <input
                 id="dep-capital"
                 type="number"
@@ -273,9 +254,9 @@ export default function PaperTrading() {
                 min="1"
                 value={capital}
                 onChange={(e) => setCapital(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-700 rounded px-2 py-1.5 text-sm font-mono text-zinc-50 focus:border-amber-400 focus:outline-none"
+                className={inputClass}
               />
-            </div>
+            </Field>
           </div>
 
           {selected && (
@@ -295,20 +276,16 @@ export default function PaperTrading() {
               {RISK_FIELDS.map((f) => {
                 const v = config[f.key]
                 return (
-                  <div key={f.key}>
-                    <label htmlFor={`cfg-${f.key}`} className="block text-xs text-zinc-400 font-medium mb-1">
-                      {f.label}
-                    </label>
+                  <Field key={f.key} label={f.label} htmlFor={`cfg-${f.key}`} unit={f.unit} hint={f.note}>
                     <input
                       id={`cfg-${f.key}`}
                       type="number"
                       step="any"
                       value={v === null || v === undefined || Number.isNaN(v) ? '' : v}
                       onChange={(e) => setConfigField(f.key, e.target.value, f.nullable)}
-                      className="w-full bg-zinc-950 border border-zinc-700 rounded px-2 py-1.5 text-sm font-mono text-zinc-50 focus:border-amber-400 focus:outline-none"
+                      className={inputClass}
                     />
-                    {f.note && <p className="text-xs text-zinc-500 mt-1">{f.note}</p>}
-                  </div>
+                  </Field>
                 )
               })}
             </div>
@@ -327,75 +304,70 @@ export default function PaperTrading() {
               Enabling this disables any other deployment (one shared paper account).
             </span>
             {formMsg && (
-              <p role="status" className="text-sm text-emerald-400">
-                {formMsg}
-              </p>
+              <p role="status" className="text-sm text-emerald-400">{formMsg}</p>
             )}
           </div>
           {formErr !== null && (
-            <p role="alert" className="text-sm text-rose-400">
-              {formErr}
-            </p>
+            <p role="alert" className="text-sm text-rose-400">{formErr}</p>
           )}
         </form>
       </section>
 
       <section aria-labelledby="list-heading">
-        <h2 id="list-heading" className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3">
-          Deployments
-        </h2>
+        <SectionHeader
+          id="list-heading"
+          title="Deployments"
+          subtitle="Every paper deployment and whether it is currently allowed to trade."
+          right={
+            deployments.length > 0 ? (
+              <span className="font-mono text-xs text-zinc-500">{deployments.length} total</span>
+            ) : undefined
+          }
+        />
         {deployments.length === 0 ? (
           <div className="bg-zinc-900 border border-zinc-800 rounded p-8 text-center">
             <p className="text-sm text-zinc-500">No deployments yet. Create one above.</p>
           </div>
         ) : (
-          <div className="bg-zinc-900 border border-zinc-800 rounded overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="bg-zinc-900 border border-zinc-800 rounded px-4 py-3">
+            <Table>
               <thead>
-                <tr className="text-left text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800">
-                  <th className="px-3 py-2 font-medium">ID</th>
-                  <th className="px-3 py-2 font-medium">Name</th>
-                  <th className="px-3 py-2 font-medium">Strategy</th>
-                  <th className="px-3 py-2 font-medium">Symbols</th>
-                  <th className="px-3 py-2 font-medium">Capital</th>
-                  <th className="px-3 py-2 font-medium">Enabled</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
-                  <th className="px-3 py-2 font-medium">Created</th>
+                <tr className="border-b border-zinc-800">
+                  <Th>ID</Th>
+                  <Th>Name</Th>
+                  <Th>Strategy</Th>
+                  <Th>Symbols</Th>
+                  <Th align="right" sub="USD">Capital</Th>
+                  <Th>Enabled</Th>
+                  <Th>Status</Th>
+                  <Th align="right">Created</Th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-zinc-800/60">
                 {deployments.map((d) => (
-                  <tr key={d.id} className="border-b border-zinc-800/60 last:border-0">
-                    <td className="px-3 py-2 font-mono text-zinc-400">#{d.id}</td>
-                    <td className="px-3 py-2">
-                      <Link to={`/paper/${d.id}`} className="text-amber-400 hover:text-amber-300">
+                  <tr key={d.id} className="hover:bg-zinc-800/30 transition-colors">
+                    <Td mono className="text-zinc-400">#{d.id}</Td>
+                    <Td>
+                      <Link to={`/paper/${d.id}`} className="text-amber-400 hover:text-amber-300 transition-colors">
                         {d.name}
                       </Link>
-                    </td>
-                    <td className="px-3 py-2 text-zinc-400">{d.strategy_name}</td>
-                    <td className="px-3 py-2 font-mono text-xs text-zinc-500">
-                      {d.symbols.join(', ')}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-zinc-400">
-                      {formatCurrency(d.starting_capital)}
-                    </td>
-                    <td className="px-3 py-2">
+                    </Td>
+                    <Td className="text-zinc-400 text-xs">{d.strategy_name}</Td>
+                    <Td mono className="text-zinc-500 text-xs">{d.symbols.join(', ')}</Td>
+                    <Td mono align="right" className="text-zinc-300">{formatCurrency(d.starting_capital)}</Td>
+                    <Td>
                       {d.enabled ? (
-                        <span className="text-emerald-400">on</span>
+                        <span className="text-emerald-400 font-mono text-xs">on</span>
                       ) : (
-                        <span className="text-zinc-500">off</span>
+                        <span className="text-zinc-500 font-mono text-xs">off</span>
                       )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <RunStatusBadge status={d.status} />
-                    </td>
-                    <td className="px-3 py-2 font-mono text-xs text-zinc-500">
-                      {formatDate(d.created_at)}
-                    </td>
+                    </Td>
+                    <Td><RunStatusBadge status={d.status} /></Td>
+                    <Td mono align="right" className="text-zinc-500">{formatDate(d.created_at)}</Td>
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </div>
         )}
       </section>

@@ -9,17 +9,22 @@ import {
 import { EquityCurve } from '../components/EquityCurve'
 import { PaperDisclaimer } from '../components/PaperDisclaimer'
 import { RunStatusBadge } from '../components/RunStatusBadge'
+import { MetricStat } from '../components/MetricStat'
+import {
+  PageHeader,
+  SectionHeader,
+  Stat,
+  StatGrid,
+  ProvenanceStrip,
+  Table,
+  Th,
+  Td,
+} from '../components/ui'
+import type { ProvenanceItem } from '../components/ui'
 import { usePolling } from '../hooks/usePolling'
 import type { ComparisonView, PortfolioView } from '../types/paperTrading'
 import type { EquityPoint } from '../types/backtest'
-import {
-  formatCurrency,
-  formatDate,
-  formatFraction,
-  formatPercent,
-  formatProfitFactor,
-  returnClass,
-} from '../utils/format'
+import { formatCurrency, formatDate, formatPercent } from '../utils/format'
 import { extractMessage } from '../utils/errors'
 
 function snapToEquity(view: PortfolioView): EquityPoint[] {
@@ -33,6 +38,59 @@ function snapToEquity(view: PortfolioView): EquityPoint[] {
 
 function fmtDelta(value: number): string {
   return `${value >= 0 ? '+' : ''}${value.toFixed(4)}`
+}
+
+interface Col {
+  label: string
+  align?: 'left' | 'right'
+  sub?: string
+}
+
+/** Section + card + dense table for the simple position/order/fill lists. */
+function ListTable({
+  title,
+  subtitle,
+  empty,
+  cols,
+  rows,
+}: {
+  title: string
+  subtitle: string
+  empty: string
+  cols: Col[]
+  rows: { key: string; cells: React.ReactNode[] }[]
+}) {
+  return (
+    <section aria-label={title}>
+      <SectionHeader title={title} subtitle={subtitle} />
+      {rows.length === 0 ? (
+        <div className="bg-zinc-900 border border-zinc-800 rounded p-6 text-center">
+          <p className="text-sm text-zinc-500">{empty}</p>
+        </div>
+      ) : (
+        <div className="bg-zinc-900 border border-zinc-800 rounded px-4 py-3">
+          <Table>
+            <thead>
+              <tr className="border-b border-zinc-800">
+                {cols.map((c) => (
+                  <Th key={c.label} align={c.align} sub={c.sub}>{c.label}</Th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-800/60">
+              {rows.map((row) => (
+                <tr key={row.key} className="hover:bg-zinc-800/30 transition-colors">
+                  {row.cells.map((cell, j) => (
+                    <Td key={j} mono align={cols[j].align} className="text-zinc-300">{cell}</Td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        </div>
+      )}
+    </section>
+  )
 }
 
 export default function PaperDeploymentDetail() {
@@ -78,6 +136,7 @@ export default function PaperDeploymentDetail() {
 
   const { deployment, positions, orders, fills, reconciliations, slippage, global_kill } = data
   const latest = data.equity_curve[data.equity_curve.length - 1]
+  const expectation = comparison?.backtest_expectation ?? null
 
   const runNow = async () => {
     setActionErr(null)
@@ -108,38 +167,47 @@ export default function PaperDeploymentDetail() {
     }
   }
 
+  const provenance: ProvenanceItem[] = [
+    { label: 'Deployment', value: `#${deployment.id}` },
+    { label: 'Strategy', value: deployment.strategy_name },
+    { label: 'Basket', value: deployment.symbols.join(', ') },
+    { label: 'Capital', value: formatCurrency(deployment.starting_capital) },
+    { label: 'Enabled', value: deployment.enabled ? 'on' : 'off' },
+    { label: 'Created', value: formatDate(deployment.created_at) },
+  ]
+
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-zinc-50">{deployment.name}</h1>
-          <p className="text-sm text-zinc-500 mt-1 font-mono">
-            {deployment.strategy_name} · {deployment.symbols.join(', ')} ·{' '}
-            {formatCurrency(deployment.starting_capital)} start
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <RunStatusBadge status={deployment.status} />
-          <button
-            type="button"
-            onClick={() => void toggleEnabled()}
-            disabled={busy}
-            aria-busy={busy}
-            className="px-3 py-1.5 text-sm font-medium rounded border border-zinc-700 text-zinc-300 hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {deployment.enabled ? 'Disable' : 'Enable'}
-          </button>
-          <button
-            type="button"
-            onClick={() => void runNow()}
-            disabled={busy}
-            aria-busy={busy}
-            className="px-3 py-1.5 text-sm font-semibold rounded bg-amber-400 text-zinc-950 hover:bg-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {busy ? 'Working…' : 'Run now'}
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        back={{ to: '/paper', label: 'Paper Trading' }}
+        title={deployment.name}
+        subtitle={`${deployment.strategy_name} · ${deployment.symbols.join(', ')}`}
+        meta={
+          <div className="flex items-center gap-2">
+            <RunStatusBadge status={deployment.status} />
+            <button
+              type="button"
+              onClick={() => void toggleEnabled()}
+              disabled={busy}
+              aria-busy={busy}
+              className="px-3 py-1.5 text-sm font-medium rounded border border-zinc-700 text-zinc-300 hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {deployment.enabled ? 'Disable' : 'Enable'}
+            </button>
+            <button
+              type="button"
+              onClick={() => void runNow()}
+              disabled={busy}
+              aria-busy={busy}
+              className="px-3 py-1.5 text-sm font-semibold rounded bg-amber-400 text-zinc-950 hover:bg-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {busy ? 'Working…' : 'Run now'}
+            </button>
+          </div>
+        }
+      />
+
+      <ProvenanceStrip items={provenance} />
 
       <PaperDisclaimer />
 
@@ -156,28 +224,32 @@ export default function PaperDeploymentDetail() {
       {actionMsg && <p role="status" className="text-sm text-emerald-400">{actionMsg}</p>}
       {actionErr && <p role="alert" className="text-sm text-rose-400">{actionErr}</p>}
 
-      {/* Portfolio snapshot cards */}
+      {/* Portfolio snapshot */}
       {latest && (
-        <dl className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            { label: 'Equity', value: formatCurrency(latest.equity), cls: 'text-zinc-50' },
-            { label: 'Cash', value: formatCurrency(latest.cash), cls: 'text-zinc-50' },
-            { label: 'Gross Exposure', value: formatPercent(latest.gross_exposure_pct), cls: 'text-zinc-50' },
-            { label: 'Drawdown', value: `−${formatPercent(latest.drawdown_pct)}`, cls: 'text-rose-400' },
-          ].map((c) => (
-            <div key={c.label} className="bg-zinc-900 border border-zinc-800 rounded p-4">
-              <dt className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">{c.label}</dt>
-              <dd className={`text-xl font-mono font-semibold ${c.cls}`}>{c.value}</dd>
-            </div>
-          ))}
-        </dl>
+        <section aria-labelledby="snapshot-heading">
+          <SectionHeader
+            id="snapshot-heading"
+            title="Portfolio Snapshot"
+            subtitle={`As of the latest simulated trading day, ${formatDate(latest.trading_day)}.`}
+          />
+          <StatGrid cols="grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+            <Stat label="Equity" value={formatCurrency(latest.equity)} hint="Cash plus marked-to-market positions." />
+            <Stat label="Cash" value={formatCurrency(latest.cash)} hint="Uninvested balance." />
+            <Stat label="Position Value" value={formatCurrency(latest.position_value)} hint="Market value of open positions." />
+            <Stat label="Gross Exposure" value={formatPercent(latest.gross_exposure_pct)} hint="Invested share of equity." />
+            <Stat label="Open Positions" value={latest.num_positions} hint="Distinct symbols held." />
+            <Stat label="Drawdown" value={`−${formatPercent(latest.drawdown_pct)}`} tone="neg" hint="Below the peak equity so far." />
+          </StatGrid>
+        </section>
       )}
 
       {/* Live equity curve */}
       <section aria-labelledby="equity-heading">
-        <h2 id="equity-heading" className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3">
-          Simulated Paper Equity
-        </h2>
+        <SectionHeader
+          id="equity-heading"
+          title="Simulated Paper Equity"
+          subtitle="Account value per simulated trading day on Alpaca's paper endpoint."
+        />
         <div className="bg-zinc-900 border border-zinc-800 rounded p-4">
           <EquityCurve data={snapToEquity(data)} />
         </div>
@@ -185,25 +257,21 @@ export default function PaperDeploymentDetail() {
 
       {/* Live vs backtest comparison */}
       <section aria-labelledby="cmp-heading">
-        <h2 id="cmp-heading" className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3">
-          Paper Results vs Historical Backtest
-        </h2>
-        <div className="bg-zinc-900 border border-zinc-800 rounded p-5 space-y-4">
-          {comparison?.backtest_expectation ? (
-            <dl className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[
-                { label: 'Backtest Return', value: formatPercent(comparison.backtest_expectation.total_return_pct), cls: returnClass(comparison.backtest_expectation.total_return_pct) },
-                { label: 'Backtest Sharpe', value: comparison.backtest_expectation.sharpe_ratio.toFixed(2), cls: 'text-zinc-50' },
-                { label: 'Backtest Max DD', value: `−${formatPercent(comparison.backtest_expectation.max_drawdown_pct)}`, cls: 'text-rose-400' },
-                { label: 'Backtest Win Rate', value: formatFraction(comparison.backtest_expectation.win_rate), cls: 'text-zinc-50', note: `${comparison.backtest_expectation.num_round_trips} round trips · PF ${formatProfitFactor(comparison.backtest_expectation.profit_factor)}` },
-              ].map((c) => (
-                <div key={c.label}>
-                  <dt className="text-xs text-zinc-500 uppercase tracking-wider mb-1">{c.label}</dt>
-                  <dd className={`text-lg font-mono font-semibold ${c.cls}`}>{c.value}</dd>
-                  {c.note && <p className="text-xs text-zinc-500 mt-1">{c.note}</p>}
-                </div>
-              ))}
-            </dl>
+        <SectionHeader
+          id="cmp-heading"
+          title="Paper vs Historical Backtest"
+          subtitle="What the same strategy scored on history, for context. A backtest is not a prediction of paper results."
+        />
+        <div className="bg-zinc-900 border border-zinc-800 rounded p-5 space-y-5">
+          {expectation ? (
+            <StatGrid cols="grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+              <MetricStat metricKey="total_return_pct" value={expectation.total_return_pct} />
+              <MetricStat metricKey="sharpe_ratio" value={expectation.sharpe_ratio} />
+              <MetricStat metricKey="max_drawdown_pct" value={expectation.max_drawdown_pct} />
+              <MetricStat metricKey="win_rate" value={expectation.win_rate} />
+              <MetricStat metricKey="profit_factor" value={expectation.profit_factor} />
+              <MetricStat metricKey="num_round_trips" value={expectation.num_round_trips} />
+            </StatGrid>
           ) : (
             <p className="text-sm text-zinc-500">
               No historical backtest available yet (no stored history for this basket).
@@ -212,18 +280,17 @@ export default function PaperDeploymentDetail() {
           )}
 
           <div className="border-t border-zinc-800 pt-4">
-            <p className="text-xs text-zinc-500 uppercase tracking-wider mb-2">
-              Slippage attribution — realized fill vs modeled open, per share (USD,
-              cost-signed)
+            <p className="text-xs text-zinc-500 uppercase tracking-wider mb-3">
+              Slippage attribution — realized fill vs modeled open, per share (USD, cost-signed)
             </p>
             {slippage.count > 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3 font-mono text-sm">
-                <div><span className="text-zinc-500 text-xs block">fills</span>{slippage.count}</div>
-                <div><span className="text-zinc-500 text-xs block">mean</span>{fmtDelta(slippage.mean)}</div>
-                <div><span className="text-zinc-500 text-xs block">median</span>{fmtDelta(slippage.median)}</div>
-                <div><span className="text-zinc-500 text-xs block">min</span>{fmtDelta(slippage.min)}</div>
-                <div><span className="text-zinc-500 text-xs block">max</span>{fmtDelta(slippage.max)}</div>
-              </div>
+              <StatGrid cols="grid-cols-2 sm:grid-cols-5">
+                <Stat label="Fills" value={slippage.count} hint="Measured fills." />
+                <Stat label="Mean" value={fmtDelta(slippage.mean)} hint="Positive = adverse cost." />
+                <Stat label="Median" value={fmtDelta(slippage.median)} />
+                <Stat label="Min" value={fmtDelta(slippage.min)} />
+                <Stat label="Max" value={fmtDelta(slippage.max)} />
+              </StatGrid>
             ) : (
               <p className="text-sm text-zinc-500">No fills recorded yet.</p>
             )}
@@ -236,104 +303,119 @@ export default function PaperDeploymentDetail() {
       </section>
 
       {/* Positions */}
-      <Table
-        heading="Open Positions"
+      <ListTable
+        title="Open Positions"
+        subtitle="Symbols currently held, marked to the latest price."
         empty="No open positions."
-        cols={['Symbol', 'Qty', 'Avg Entry', 'Market Value', 'Price']}
-        rows={positions.map((p) => [p.symbol, p.quantity.toFixed(2), formatCurrency(p.avg_entry_price), formatCurrency(p.market_value), formatCurrency(p.current_price)])}
+        cols={[
+          { label: 'Symbol' },
+          { label: 'Qty', align: 'right', sub: 'shares' },
+          { label: 'Avg Entry', align: 'right', sub: 'USD' },
+          { label: 'Market Value', align: 'right', sub: 'USD' },
+          { label: 'Price', align: 'right', sub: 'USD' },
+        ]}
+        rows={positions.map((p) => ({
+          key: `${p.symbol}-${p.trading_day}`,
+          cells: [
+            p.symbol,
+            p.quantity.toFixed(2),
+            formatCurrency(p.avg_entry_price),
+            formatCurrency(p.market_value),
+            formatCurrency(p.current_price),
+          ],
+        }))}
       />
 
       {/* Orders */}
-      <Table
-        heading="Orders"
+      <ListTable
+        title="Orders"
+        subtitle="Every order the strategy intended, and how much of it filled."
         empty="No orders yet."
-        cols={['Day', 'Symbol', 'Side', 'Qty', 'Status', 'Filled']}
-        rows={orders.map((o) => [formatDate(o.trading_day), o.symbol, o.side, o.intended_quantity.toFixed(0), o.status, o.filled_quantity.toFixed(0)])}
+        cols={[
+          { label: 'Day' },
+          { label: 'Symbol' },
+          { label: 'Side' },
+          { label: 'Qty', align: 'right', sub: 'shares' },
+          { label: 'Status' },
+          { label: 'Filled', align: 'right', sub: 'shares' },
+        ]}
+        rows={orders.map((o) => ({
+          key: String(o.id),
+          cells: [
+            formatDate(o.trading_day),
+            o.symbol,
+            o.side,
+            o.intended_quantity.toFixed(0),
+            o.status,
+            o.filled_quantity.toFixed(0),
+          ],
+        }))}
       />
 
       {/* Fills with slippage */}
-      <Table
-        heading="Fills"
+      <ListTable
+        title="Fills"
+        subtitle="Executions against real quotes, with the gap from the backtest's modeled open."
         empty="No fills yet."
-        cols={['Day', 'Symbol', 'Side', 'Qty', 'Fill', 'Modeled Open', 'Slippage']}
-        rows={fills.map((f) => [formatDate(f.trading_day), f.symbol, f.side, f.quantity.toFixed(2), formatCurrency(f.price), formatCurrency(f.modeled_reference_price), fmtDelta(f.slippage_delta)])}
+        cols={[
+          { label: 'Day' },
+          { label: 'Symbol' },
+          { label: 'Side' },
+          { label: 'Qty', align: 'right', sub: 'shares' },
+          { label: 'Fill', align: 'right', sub: 'USD' },
+          { label: 'Modeled Open', align: 'right', sub: 'USD' },
+          { label: 'Slippage', align: 'right', sub: 'USD/sh' },
+        ]}
+        rows={fills.map((f) => ({
+          key: String(f.id),
+          cells: [
+            formatDate(f.trading_day),
+            f.symbol,
+            f.side,
+            f.quantity.toFixed(2),
+            formatCurrency(f.price),
+            formatCurrency(f.modeled_reference_price),
+            fmtDelta(f.slippage_delta),
+          ],
+        }))}
       />
 
       {/* Reconciliation */}
       <section aria-labelledby="recon-heading">
-        <h2 id="recon-heading" className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3">
-          Reconciliation Log
-        </h2>
+        <SectionHeader
+          id="recon-heading"
+          title="Reconciliation Log"
+          subtitle="Divergences between the platform's view and the broker's. Empty is good."
+        />
         {reconciliations.length === 0 ? (
           <div className="bg-zinc-900 border border-zinc-800 rounded p-6 text-center">
             <p className="text-sm text-zinc-500">No divergences recorded — platform matches the broker.</p>
           </div>
         ) : (
-          <div className="bg-zinc-900 border border-zinc-800 rounded overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="bg-zinc-900 border border-zinc-800 rounded px-4 py-3">
+            <Table>
               <thead>
-                <tr className="text-left text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800">
-                  <th className="px-3 py-2 font-medium">Day</th>
-                  <th className="px-3 py-2 font-medium">Kind</th>
-                  <th className="px-3 py-2 font-medium">Symbol</th>
-                  <th className="px-3 py-2 font-medium">Detail</th>
+                <tr className="border-b border-zinc-800">
+                  <Th>Day</Th>
+                  <Th>Kind</Th>
+                  <Th>Symbol</Th>
+                  <Th>Detail</Th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-zinc-800/60">
                 {reconciliations.map((r) => (
-                  <tr key={r.id} className="border-b border-zinc-800/60 last:border-0">
-                    <td className="px-3 py-2 font-mono text-xs text-zinc-500">{formatDate(r.trading_day)}</td>
-                    <td className="px-3 py-2 text-amber-400">{r.kind}</td>
-                    <td className="px-3 py-2 text-zinc-400">{r.symbol ?? '—'}</td>
-                    <td className="px-3 py-2 text-zinc-400">{r.detail}</td>
+                  <tr key={r.id}>
+                    <Td mono className="text-zinc-500">{formatDate(r.trading_day)}</Td>
+                    <Td className="text-amber-400">{r.kind}</Td>
+                    <Td className="text-zinc-400">{r.symbol ?? '—'}</Td>
+                    <Td className="text-zinc-400">{r.detail}</Td>
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </Table>
           </div>
         )}
       </section>
     </div>
-  )
-}
-
-interface TableProps {
-  heading: string
-  empty: string
-  cols: string[]
-  rows: string[][]
-}
-
-function Table({ heading, empty, cols, rows }: TableProps) {
-  return (
-    <section aria-label={heading}>
-      <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3">{heading}</h2>
-      {rows.length === 0 ? (
-        <div className="bg-zinc-900 border border-zinc-800 rounded p-6 text-center">
-          <p className="text-sm text-zinc-500">{empty}</p>
-        </div>
-      ) : (
-        <div className="bg-zinc-900 border border-zinc-800 rounded overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800">
-                {cols.map((c) => (
-                  <th key={c} className="px-3 py-2 font-medium">{c}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, i) => (
-                <tr key={i} className="border-b border-zinc-800/60 last:border-0">
-                  {row.map((cell, j) => (
-                    <td key={j} className="px-3 py-2 font-mono text-zinc-300">{cell}</td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
   )
 }

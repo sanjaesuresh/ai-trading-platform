@@ -1,4 +1,5 @@
 import type { ParamsSchema } from '../types/strategy'
+import { Field, inputClass } from './ui'
 
 interface StrategyParamFieldsProps {
   schema: ParamsSchema
@@ -22,6 +23,13 @@ function labelFor(key: string, title?: string): string {
   return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
+function rangeHint(min: number | undefined, max: number | undefined): string | null {
+  if (min !== undefined && max !== undefined) return `Range ${min}–${max}`
+  if (min !== undefined) return `Min ${min}`
+  if (max !== undefined) return `Max ${max}`
+  return null
+}
+
 export function StrategyParamFields({
   schema,
   values,
@@ -31,9 +39,7 @@ export function StrategyParamFields({
 
   if (properties.length === 0) {
     return (
-      <p className="text-sm text-zinc-500">
-        This strategy has no tunable parameters.
-      </p>
+      <p className="text-sm text-zinc-500">This strategy has no tunable parameters.</p>
     )
   }
 
@@ -44,14 +50,15 @@ export function StrategyParamFields({
         const max = prop.maximum ?? prop.exclusiveMaximum
         const value = values[key]
         const inputId = `param-${key}`
+        const range = rangeHint(min, max)
+        const hint = [prop.description, range].filter(Boolean).join(' · ')
         return (
-          <div key={key}>
-            <label
-              htmlFor={inputId}
-              className="block text-xs text-zinc-400 font-medium mb-1"
-            >
-              {labelFor(key, prop.title)}
-            </label>
+          <Field
+            key={key}
+            label={labelFor(key, prop.title)}
+            htmlFor={inputId}
+            hint={hint.length > 0 ? hint : undefined}
+          >
             <input
               id={inputId}
               type="number"
@@ -66,12 +73,9 @@ export function StrategyParamFields({
                   [key]: next === '' ? Number.NaN : Number(next),
                 })
               }}
-              className="w-full bg-zinc-950 border border-zinc-700 rounded px-2 py-1.5 text-sm font-mono text-zinc-50 focus:border-amber-400 focus:outline-none"
+              className={inputClass}
             />
-            {prop.description && (
-              <p className="text-xs text-zinc-600 mt-1">{prop.description}</p>
-            )}
-          </div>
+          </Field>
         )
       })}
     </div>

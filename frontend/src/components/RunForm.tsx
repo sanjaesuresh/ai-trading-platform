@@ -5,9 +5,10 @@ import { runBacktest } from '../api/backtests'
 import type { RunRequest } from '../types/backtest'
 import type { StrategyInfo } from '../types/strategy'
 import { StrategyParamFields, defaultsFromSchema } from './StrategyParamFields'
+import { SectionHeader, Field, inputClass } from './ui'
 import { extractMessage } from '../utils/errors'
 
-interface FieldProps {
+interface TextFieldProps {
   id: string
   label: string
   value: string
@@ -15,15 +16,13 @@ interface FieldProps {
   type?: string
   placeholder?: string
   hint?: string
+  unit?: string
   step?: string
 }
 
-function Field({ id, label, value, onChange, type = 'text', placeholder, hint, step }: FieldProps) {
+function TextField({ id, label, value, onChange, type = 'text', placeholder, hint, unit, step }: TextFieldProps) {
   return (
-    <div>
-      <label htmlFor={id} className="block text-xs text-zinc-400 font-medium mb-1">
-        {label}
-      </label>
+    <Field label={label} htmlFor={id} unit={unit} hint={hint}>
       <input
         id={id}
         type={type}
@@ -31,10 +30,9 @@ function Field({ id, label, value, onChange, type = 'text', placeholder, hint, s
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-zinc-950 border border-zinc-700 rounded px-2 py-1.5 text-sm font-mono text-zinc-50 focus:border-amber-400 focus:outline-none"
+        className={inputClass}
       />
-      {hint && <p className="text-xs text-zinc-600 mt-1">{hint}</p>}
-    </div>
+    </Field>
   )
 }
 
@@ -134,8 +132,6 @@ export function RunForm() {
     }
   }
 
-  const sectionLabel = 'text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3'
-
   return (
     <form onSubmit={(e) => void handleSubmit(e)} className="space-y-8">
       <p className="text-xs text-amber-300/70">
@@ -144,9 +140,9 @@ export function RunForm() {
 
       {/* Data source */}
       <section>
-        <h2 className={sectionLabel}>Data Source</h2>
+        <SectionHeader title="Data Source" subtitle="Where the price bars come from." />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field
+          <TextField
             id="symbol"
             label="Symbol"
             value={symbol}
@@ -154,9 +150,10 @@ export function RunForm() {
             placeholder="e.g. SPY"
             hint="Run label (CSV mode) or the stored-bar lookup key (DB mode)."
           />
-          <Field
+          <TextField
             id="csv_path"
-            label="CSV path (optional)"
+            label="CSV Path"
+            unit="optional"
             value={csvPath}
             onChange={setCsvPath}
             placeholder="leave empty for DB mode"
@@ -167,12 +164,10 @@ export function RunForm() {
 
       {/* Strategy */}
       <section>
-        <h2 className={sectionLabel}>Strategy</h2>
+        <SectionHeader title="Strategy" subtitle="The rule set and its parameters." />
         {stratError !== null ? (
           <div className="bg-zinc-900 border border-zinc-800 rounded p-4">
-            <p role="alert" className="text-sm text-rose-400">
-              {stratError}
-            </p>
+            <p role="alert" className="text-sm text-rose-400">{stratError}</p>
             <button
               type="button"
               onClick={loadStrategies}
@@ -182,31 +177,21 @@ export function RunForm() {
             </button>
           </div>
         ) : strategies === null ? (
-          <p className="text-sm text-zinc-500" aria-busy="true">
-            Loading strategies…
-          </p>
+          <p className="text-sm text-zinc-500" aria-busy="true">Loading strategies…</p>
         ) : (
           <div className="space-y-4">
-            <div>
-              <label
-                htmlFor="strategy"
-                className="block text-xs text-zinc-400 font-medium mb-1"
-              >
-                Strategy
-              </label>
+            <Field label="Strategy" htmlFor="strategy">
               <select
                 id="strategy"
                 value={strategyName}
                 onChange={(e) => onStrategyChange(e.target.value)}
-                className="w-full sm:w-64 bg-zinc-950 border border-zinc-700 rounded px-2 py-1.5 text-sm font-mono text-zinc-50 focus:border-amber-400 focus:outline-none"
+                className={`${inputClass} sm:w-64`}
               >
                 {strategies.map((s) => (
-                  <option key={s.name} value={s.name}>
-                    {s.name}
-                  </option>
+                  <option key={s.name} value={s.name}>{s.name}</option>
                 ))}
               </select>
-            </div>
+            </Field>
             {selected && (
               <StrategyParamFields
                 schema={selected.params_schema}
@@ -220,32 +205,35 @@ export function RunForm() {
 
       {/* Execution */}
       <section>
-        <h2 className={sectionLabel}>Execution</h2>
+        <SectionHeader
+          title="Execution"
+          subtitle="Starting capital and the trading frictions applied to every fill."
+        />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Field id="capital" label="Initial capital ($)" type="number" step="any" value={initialCapital} onChange={setInitialCapital} />
-          <Field id="fee" label="Fee (bps)" type="number" step="any" value={feeBps} onChange={setFeeBps} />
-          <Field id="slippage" label="Slippage (bps)" type="number" step="any" value={slippageBps} onChange={setSlippageBps} />
-          <Field id="maxpos" label="Max position (fraction)" type="number" step="any" value={maxPositionPct} onChange={setMaxPositionPct} />
+          <TextField id="capital" label="Initial Capital" unit="USD" type="number" step="any" value={initialCapital} onChange={setInitialCapital} />
+          <TextField id="fee" label="Fee" unit="bps" type="number" step="any" value={feeBps} onChange={setFeeBps} hint="Commission per fill, basis points." />
+          <TextField id="slippage" label="Slippage" unit="bps" type="number" step="any" value={slippageBps} onChange={setSlippageBps} hint="Modeled price impact per fill." />
+          <TextField id="maxpos" label="Max Position" unit="fraction" type="number" step="any" value={maxPositionPct} onChange={setMaxPositionPct} hint="Share of cash per position. 0.95 = 95%." />
         </div>
       </section>
 
       {/* Sizing & risk (optional) */}
       <section>
-        <h2 className={sectionLabel}>Sizing & Risk (optional)</h2>
-        <p className="text-xs text-zinc-600 mb-3">Leave a field empty to disable that control.</p>
+        <SectionHeader
+          title="Sizing & Risk"
+          subtitle="Optional controls. Leave a field empty to disable it."
+        />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <Field id="targetvol" label="Target volatility (e.g. 0.15)" type="number" step="any" value={targetVol} onChange={setTargetVol} />
-          <Field id="vollookback" label="Vol lookback (bars)" type="number" step="any" value={volLookback} onChange={setVolLookback} hint="Used only when target volatility is set." />
-          <Field id="stoploss" label="Stop loss (fraction)" type="number" step="any" value={stopLossPct} onChange={setStopLossPct} />
-          <Field id="takeprofit" label="Take profit (fraction)" type="number" step="any" value={takeProfitPct} onChange={setTakeProfitPct} />
-          <Field id="maxdd" label="Max drawdown cutoff (fraction)" type="number" step="any" value={maxDrawdownCutoffPct} onChange={setMaxDrawdownCutoffPct} />
+          <TextField id="targetvol" label="Target Volatility" unit="annual" type="number" step="any" value={targetVol} onChange={setTargetVol} hint="e.g. 0.15 = 15%. Empty = fixed sizing." />
+          <TextField id="vollookback" label="Vol Lookback" unit="bars" type="number" step="any" value={volLookback} onChange={setVolLookback} hint="Used only when target volatility is set." />
+          <TextField id="stoploss" label="Stop Loss" unit="fraction" type="number" step="any" value={stopLossPct} onChange={setStopLossPct} hint="Exit if a position falls this far." />
+          <TextField id="takeprofit" label="Take Profit" unit="fraction" type="number" step="any" value={takeProfitPct} onChange={setTakeProfitPct} hint="Exit if a position gains this far." />
+          <TextField id="maxdd" label="Max Drawdown Cutoff" unit="fraction" type="number" step="any" value={maxDrawdownCutoffPct} onChange={setMaxDrawdownCutoffPct} hint="Halt trading past this equity decline." />
         </div>
       </section>
 
       {error !== null && (
-        <p role="alert" className="text-sm text-rose-400">
-          {error}
-        </p>
+        <p role="alert" className="text-sm text-rose-400">{error}</p>
       )}
 
       <div className="flex items-center gap-3">

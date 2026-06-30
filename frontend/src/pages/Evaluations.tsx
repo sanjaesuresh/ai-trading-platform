@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { listEvaluations } from '../api/evaluations'
 import type { EvaluationSummary } from '../types/evaluation'
 import { RunStatusBadge } from '../components/RunStatusBadge'
+import { PageHeader, Table, Th, Td } from '../components/ui'
 import { usePolling } from '../hooks/usePolling'
 import { formatDate } from '../utils/format'
 import { extractMessage } from '../utils/errors'
@@ -11,9 +12,8 @@ function isActive(status: string): boolean {
   return status === 'queued' || status === 'running'
 }
 
-function KindLabel({ kind }: { kind: string }) {
-  const label = kind === 'walk_forward' ? 'Walk-forward' : 'Sweep'
-  return <span className="text-zinc-300">{label}</span>
+function kindLabel(kind: string): string {
+  return kind === 'walk_forward' ? 'Walk-forward' : 'Sweep'
 }
 
 export default function Evaluations() {
@@ -28,18 +28,21 @@ export default function Evaluations() {
   }, [data])
 
   const list = data ?? []
-  const err = error
   const isLoading = loading && data === null
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-50">Evaluations</h1>
-        <p className="text-sm text-zinc-500 mt-1">
-          Parameter sweeps (in-sample only) and walk-forward runs (out-of-sample,
-          baseline-compared). Simulated only — not financial advice.
-        </p>
-      </div>
+      <PageHeader
+        title="Evaluations"
+        subtitle="Parameter sweeps (in-sample only) and walk-forward runs (out-of-sample, baseline-compared). Out-of-sample evidence is the only kind that counts. Simulated only — not financial advice."
+        meta={
+          list.length > 0 ? (
+            <span className="font-mono text-sm text-zinc-500">
+              {list.length} evaluation{list.length === 1 ? '' : 's'}
+            </span>
+          ) : undefined
+        }
+      />
 
       {isLoading ? (
         <div
@@ -48,11 +51,9 @@ export default function Evaluations() {
         >
           <p className="text-sm text-zinc-500">Loading evaluations…</p>
         </div>
-      ) : err ? (
+      ) : error ? (
         <div className="bg-zinc-900 border border-zinc-800 rounded p-5">
-          <p role="alert" className="text-sm text-rose-400">
-            {extractMessage(err)}
-          </p>
+          <p role="alert" className="text-sm text-rose-400">{extractMessage(error)}</p>
         </div>
       ) : list.length === 0 ? (
         <div className="bg-zinc-900 border border-zinc-800 rounded p-8 text-center">
@@ -62,48 +63,42 @@ export default function Evaluations() {
           </p>
         </div>
       ) : (
-        <div className="bg-zinc-900 border border-zinc-800 rounded overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="bg-zinc-900 border border-zinc-800 rounded px-4 py-3">
+          <Table>
             <thead>
-              <tr className="text-left text-xs text-zinc-500 uppercase tracking-wider border-b border-zinc-800">
-                <th className="px-4 py-2 font-medium">ID</th>
-                <th className="px-4 py-2 font-medium">Kind</th>
-                <th className="px-4 py-2 font-medium">Symbol</th>
-                <th className="px-4 py-2 font-medium">Strategy</th>
-                <th className="px-4 py-2 font-medium">Objective</th>
-                <th className="px-4 py-2 font-medium">Status</th>
-                <th className="px-4 py-2 font-medium">Created</th>
-                <th className="px-4 py-2 font-medium" />
+              <tr className="border-b border-zinc-800">
+                <Th>ID</Th>
+                <Th>Kind</Th>
+                <Th>Symbol</Th>
+                <Th>Strategy</Th>
+                <Th>Objective</Th>
+                <Th>Status</Th>
+                <Th align="right">Created</Th>
+                <Th align="right"><span className="sr-only">View</span></Th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-zinc-800/60">
               {list.map((r) => (
-                <tr key={r.id} className="border-b border-zinc-800/60 last:border-0">
-                  <td className="px-4 py-2 font-mono text-zinc-400">#{r.id}</td>
-                  <td className="px-4 py-2">
-                    <KindLabel kind={r.kind} />
-                  </td>
-                  <td className="px-4 py-2 text-zinc-50">{r.symbol}</td>
-                  <td className="px-4 py-2 text-zinc-400">{r.strategy_name}</td>
-                  <td className="px-4 py-2 font-mono text-zinc-400">{r.objective}</td>
-                  <td className="px-4 py-2">
-                    <RunStatusBadge status={r.status} />
-                  </td>
-                  <td className="px-4 py-2 text-zinc-500 font-mono text-xs">
-                    {formatDate(r.created_at)}
-                  </td>
-                  <td className="px-4 py-2">
+                <tr key={r.id} className="hover:bg-zinc-800/30 transition-colors">
+                  <Td mono className="text-zinc-500">#{r.id}</Td>
+                  <Td className="text-zinc-300">{kindLabel(r.kind)}</Td>
+                  <Td mono className="text-zinc-50">{r.symbol}</Td>
+                  <Td className="text-zinc-400 text-xs">{r.strategy_name}</Td>
+                  <Td mono className="text-zinc-400 text-xs">{r.objective}</Td>
+                  <Td><RunStatusBadge status={r.status} /></Td>
+                  <Td mono align="right" className="text-zinc-500">{formatDate(r.created_at)}</Td>
+                  <Td align="right">
                     <Link
                       to={`/evaluations/${r.id}`}
-                      className="text-amber-400 hover:text-amber-300 transition-colors"
+                      className="text-xs text-amber-400 hover:text-amber-300 transition-colors"
                     >
                       View →
                     </Link>
-                  </td>
+                  </Td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         </div>
       )}
     </div>

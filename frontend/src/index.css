@@ -3,6 +3,19 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Numbers should line up column-to-column and row-to-row. JetBrains Mono
+     carries tabular figures; force them on everywhere it is used so digits
+     never jitter as values change. */
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1, 'zero' 1;
+  }
+
   :focus-visible {
     outline: 2px solid #fbbf24;
     outline-offset: 2px;
