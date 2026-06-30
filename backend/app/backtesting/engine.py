@@ -35,6 +35,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 from app.backtesting.fees import calculate_fee
+from app.backtesting.records import EquityPoint, TradeRecord
 from app.backtesting.risk import ExitSignal, check_drawdown_breach, check_stop_target
 from app.backtesting.sizing import compute_position_fraction
 from app.backtesting.slippage import apply_slippage
@@ -46,28 +47,8 @@ from app.strategies.base_strategy import BaseStrategy, Position, StrategySignal
 log = logging.getLogger(__name__)
 
 
-@dataclass
-class TradeRecord:
-    symbol: str
-    side: str  # "BUY" or "SELL"
-    timestamp: pd.Timestamp
-    price: float  # effective fill price after slippage
-    quantity: float
-    gross_value: float
-    fee: float
-    slippage: float  # slippage cost in currency
-    cash_after: float
-    position_after: float
-    equity_after: float
-    reason: str
-
-
-@dataclass
-class EquityPoint:
-    timestamp: pd.Timestamp
-    equity: float
-    cash: float
-    position_value: float
+# TradeRecord and EquityPoint moved to app.backtesting.records (shared with the
+# portfolio layer); imported above and re-exported here for existing callers.
 
 
 @dataclass
