@@ -25,13 +25,16 @@ by broker fill id; the portfolio snapshot is upserted per (deployment, day).
 from __future__ import annotations
 
 import math
+import statistics
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.backtesting.metrics import Metrics
+from app.backtesting.portfolio_backtest import run_portfolio_backtest
 from app.backtesting.portfolio_core import (
     PortfolioConfig,
     PortfolioPosition,
@@ -40,6 +43,7 @@ from app.backtesting.portfolio_core import (
     evaluate_portfolio,
     portfolio_equity,
 )
+from app.backtesting.portfolio_metrics import compute_portfolio_metrics
 from app.brokers.base import (
     BrokerPort,
     OrderRequest,
@@ -477,6 +481,137 @@ def set_global_kill(db: Session, active: bool, reason: str = "") -> None:
         db.add(flag)
     flag.value = {"active": bool(active), "reason": reason}
     db.commit()
+
+
+def update_deployment(
+    db: Session,
+    deployment: PaperDeployment,
+    *,
+    name: str | None = None,
+    params: dict | None = None,
+    symbols: list[str] | None = None,
+    starting_capital: float | None = None,
+    config: dict | None = None,
+) -> PaperDeployment:
+    """Patch a deployment's definition (only provided fields). Re-validates the
+    strategy/params via the registry."""
+    if name is not None:
+        deployment.name = name
+    if params is not None:
+        deployment.params = params
+    if symbols is not None:
+        deployment.symbols = symbols
+    if starting_capital is not None:
+        deployment.starting_capital = float(starting_capital)
+    if config is not None:
+        deployment.config = config
+    resolve_strategy(deployment.strategy_name, deployment.params)  # validation
+    db.commit()
+    db.refresh(deployment)
+    return deployment
+
+
+# --- Read helpers for the dashboard / comparison ----------------------------
+
+
+def portfolio_snapshots(db: Session, deployment_id: int) -> list[PortfolioSnapshot]:
+    return list(
+        db.scalars(
+            select(PortfolioSnapshot)
+            .where(PortfolioSnapshot.deployment_id == deployment_id)
+            .order_by(PortfolioSnapshot.trading_day)
+        ).all()
+    )
+
+
+def latest_positions(db: Session, deployment_id: int) -> list[PaperPositionSnapshot]:
+    latest_day = db.scalar(
+        select(func.max(PaperPositionSnapshot.trading_day)).where(
+            PaperPositionSnapshot.deployment_id == deployment_id
+        )
+    )
+    if latest_day is None:
+        return []
+    return list(
+        db.scalars(
+            select(PaperPositionSnapshot).where(
+                PaperPositionSnapshot.deployment_id == deployment_id,
+                PaperPositionSnapshot.trading_day == latest_day,
+            )
+        ).all()
+    )
+
+
+def recent_orders(db: Session, deployment_id: int, limit: int = 200) -> list[PaperOrder]:
+    return list(
+        db.scalars(
+            select(PaperOrder)
+            .where(PaperOrder.deployment_id == deployment_id)
+            .order_by(PaperOrder.id.desc())
+            .limit(limit)
+        ).all()
+    )
+
+
+def recent_fills(db: Session, deployment_id: int, limit: int = 500) -> list[PaperFill]:
+    return list(
+        db.scalars(
+            select(PaperFill)
+            .where(PaperFill.deployment_id == deployment_id)
+            .order_by(PaperFill.id.desc())
+            .limit(limit)
+        ).all()
+    )
+
+
+def recent_reconciliations(
+    db: Session, deployment_id: int, limit: int = 200
+) -> list[ReconciliationLog]:
+    return list(
+        db.scalars(
+            select(ReconciliationLog)
+            .where(ReconciliationLog.deployment_id == deployment_id)
+            .order_by(ReconciliationLog.id.desc())
+            .limit(limit)
+        ).all()
+    )
+
+
+def slippage_stats(deltas: list[float]) -> dict[str, float | int]:
+    """Distribution stats for the per-fill slippage deltas (pure)."""
+    if not deltas:
+        return {"count": 0, "mean": 0.0, "median": 0.0, "min": 0.0, "max": 0.0}
+    return {
+        "count": len(deltas),
+        "mean": float(statistics.fmean(deltas)),
+        "median": float(statistics.median(deltas)),
+        "min": float(min(deltas)),
+        "max": float(max(deltas)),
+    }
+
+
+def slippage_summary(db: Session, deployment_id: int) -> dict[str, float | int]:
+    deltas = db.scalars(
+        select(PaperFill.slippage_delta).where(
+            PaperFill.deployment_id == deployment_id
+        )
+    ).all()
+    return slippage_stats([float(d) for d in deltas])
+
+
+def backtest_expectation(db: Session, deployment: PaperDeployment) -> Metrics | None:
+    """Run the deployment's config through the M1 portfolio backtest over stored
+    history — the backtested expectation shown beside the live results. None when
+    there is no stored data for the basket yet."""
+    spec = spec_from_deployment(deployment)
+    frames = featured_frames(db, spec.symbols, date.today())
+    if not frames:
+        return None
+    strategy = resolve_strategy(spec.strategy_name, spec.params)
+    result = run_portfolio_backtest(frames, strategy, spec.config)
+    return compute_portfolio_metrics(
+        result.equity_curve, result.trades, spec.config.initial_capital
+    )
 
 
 def _peak_equity(db: Session, deployment: PaperDeployment) -> float:
