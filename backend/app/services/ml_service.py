@@ -42,7 +42,12 @@ from app.ml.registry import ModelMetadata, load_model, save_model
 from app.ml.training import TrainingConfig, train_model
 from app.models_db.evaluation_run import EvaluationRun
 from app.models_db.ml_model import MLModel
-from app.schemas.ml import MLBacktestRequest, MLTrainRequest, MLWalkForwardRequest
+from app.schemas.ml import (
+    MLBacktestRequest,
+    MLPortfolioWalkForwardRequest,
+    MLTrainRequest,
+    MLWalkForwardRequest,
+)
 from app.services.backtest_service import BacktestRequestError
 from app.services.evaluation_service import sanitize_result_dict
 
@@ -297,6 +302,64 @@ def run_ml_walk_forward(db: Session, run: EvaluationRun) -> EvaluationRun:
     return run
 
 
+def run_ml_portfolio_walk_forward(db: Session, run: EvaluationRun) -> EvaluationRun:
+    """Execute a multi-symbol portfolio ML walk-forward in place on the run row.
+
+    Rebuilds the pooled panel + per-symbol featured frames from the stored
+    ``config``, builds a ``PortfolioConfig`` from the request, drives
+    ``evaluate_ml_portfolio_walk_forward`` (one pooled model per split through the
+    shared portfolio core, per-symbol breakdown vs baselines), stores
+    ``result.to_dict()`` into ``run.results``, and marks the row ``completed``.
+    """
+    from app.backtesting.portfolio_core import PortfolioConfig
+    from app.ml.portfolio_evaluation import evaluate_ml_portfolio_walk_forward
+    from app.ml.training import TrainingConfig
+
+    cfg = run.config
+    req = MLPortfolioWalkForwardRequest(**cfg)
+    spec = FeatureLabelSpec(horizon=req.horizon, deadband=req.deadband)
+    panel, frames = build_ml_inputs(db, req.symbols, spec)
+
+    training_config = TrainingConfig(spec=spec, seed=req.seed)
+    portfolio_config = PortfolioConfig(
+        initial_capital=req.initial_capital,
+        fee_bps=req.fee_bps,
+        slippage_bps=req.slippage_bps,
+        target_vol=req.target_vol,
+        vol_lookback=req.vol_lookback,
+        max_position_pct=req.max_position_pct,
+        gross_exposure_cap=req.gross_exposure_cap,
+        max_open_positions=req.max_open_positions,
+        per_order_notional_cap=req.per_order_notional_cap,
+        stop_loss_pct=req.stop_loss_pct,
+        take_profit_pct=req.take_profit_pct,
+        max_drawdown_cutoff_pct=req.max_drawdown_cutoff_pct,
+    )
+    result = evaluate_ml_portfolio_walk_forward(
+        panel,
+        frames,
+        symbols=req.symbols,
+        config=portfolio_config,
+        training_config=training_config,
+        horizon=req.horizon,
+        in_sample_dates=req.in_sample_dates,
+        out_sample_dates=req.out_sample_dates,
+        step_dates=req.step_dates,
+        scheme=req.scheme,
+        n_config_trials=req.n_config_trials,
+    )
+    run.results = sanitize_result_dict(result.to_dict())
+    run.status = "completed"
+    run.finished_at = datetime.now(UTC)
+    db.commit()
+    db.refresh(run)
+    log.info(
+        "ML portfolio walk-forward run %s completed (symbols=%s, beats_all=%s).",
+        run.id, req.symbols, result.beats_all_baselines,
+    )
+    return run
+
+
 def run_ml_backtest(db: Session, run: EvaluationRun) -> EvaluationRun:
     """Execute a pinned-model backtest in place on the given run row.
 
@@ -372,22 +435,30 @@ def run_ml_backtest(db: Session, run: EvaluationRun) -> EvaluationRun:
 
 
 def create_queued_ml_run(
-    req: MLWalkForwardRequest | MLBacktestRequest,
+    req: MLWalkForwardRequest | MLBacktestRequest | MLPortfolioWalkForwardRequest,
     *,
     kind: str,
     db: Session,
 ) -> EvaluationRun:
     """Persist a ``queued`` EvaluationRun row for an ML evaluation.
 
-    ``kind`` must be ``"ml_walk_forward"`` or ``"ml_backtest"``. The typed request
-    is stored as ``config`` JSON; ``symbol`` carries the eval symbol (walk-forward)
-    or the backtest symbol. ``strategy_name`` is always ``"ml_classifier"`` for ML
-    kinds.
+    ``kind`` must be ``"ml_walk_forward"``, ``"ml_backtest"``, or
+    ``"ml_portfolio_wf"`` (the multi-symbol portfolio walk-forward — abbreviated to
+    fit the 16-char ``kind`` column). The typed request is stored as ``config``
+    JSON; ``symbol`` carries the eval symbol (walk-forward), the backtest symbol, or
+    the basket label (portfolio). ``strategy_name`` is always ``"ml_classifier"``.
     """
-    if kind not in ("ml_walk_forward", "ml_backtest"):
+    if kind not in ("ml_walk_forward", "ml_backtest", "ml_portfolio_wf"):
         raise ValueError(f"Unknown ML evaluation kind: {kind!r}.")
 
-    symbol = req.eval_symbol if isinstance(req, MLWalkForwardRequest) else req.symbol
+    if isinstance(req, MLWalkForwardRequest):
+        symbol = req.eval_symbol
+    elif isinstance(req, MLPortfolioWalkForwardRequest):
+        # Basket label; the full list lives in config.symbols. Truncate to the
+        # 32-char column so a large basket never overflows.
+        symbol = ",".join(req.symbols)[:32]
+    else:
+        symbol = req.symbol
 
     run = EvaluationRun(
         kind=kind,
@@ -429,6 +500,8 @@ def execute_ml_run(db: Session, run: EvaluationRun) -> EvaluationRun:
     """
     if run.kind == "ml_walk_forward":
         return run_ml_walk_forward(db, run)
+    if run.kind == "ml_portfolio_wf":
+        return run_ml_portfolio_walk_forward(db, run)
     if run.kind == "ml_backtest":
         return run_ml_backtest(db, run)
     raise ValueError(f"Unknown ML evaluation kind: {run.kind!r}.")

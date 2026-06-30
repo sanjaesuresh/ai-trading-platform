@@ -25,6 +25,7 @@ from app.schemas.ml import (
     MLEvaluationSummary,
     MLModelDetail,
     MLModelSummary,
+    MLPortfolioWalkForwardRequest,
     MLTrainRequest,
     MLWalkForwardRequest,
 )
@@ -122,6 +123,25 @@ async def enqueue_walk_forward(
 
 
 @router.post(
+    "/evaluations/portfolio-walk-forward",
+    response_model=MLEvaluationSummary,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def enqueue_portfolio_walk_forward(
+    req: MLPortfolioWalkForwardRequest, db: Session = Depends(get_db)
+) -> MLEvaluationSummary:
+    """Queue a multi-symbol portfolio ML walk-forward; poll GET /ml/evaluations/{id}.
+
+    Drives the pooled ML model multi-symbol through the Phase 3 portfolio core and
+    judges it per symbol and against baselines, net of fees. Results are simulated —
+    not financial advice.
+    """
+    run = create_queued_ml_run(req, kind="ml_portfolio_wf", db=db)
+    await _enqueue_or_fail(run, db)
+    return MLEvaluationSummary.model_validate(run)
+
+
+@router.post(
     "/evaluations/backtest",
     response_model=MLEvaluationSummary,
     status_code=status.HTTP_202_ACCEPTED,
@@ -154,7 +174,9 @@ def get_ml_evaluation(
 ) -> MLEvaluationDetail:
     """Return the full detail of one ML evaluation run, or 404 if unknown."""
     run = db.get(EvaluationRun, evaluation_id)
-    if run is None or run.kind not in ("ml_walk_forward", "ml_backtest"):
+    if run is None or run.kind not in (
+        "ml_walk_forward", "ml_backtest", "ml_portfolio_wf"
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"ML evaluation {evaluation_id} not found.",

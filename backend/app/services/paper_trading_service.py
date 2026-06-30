@@ -211,7 +211,6 @@ def plan_cycle(
     """Compute the orders to submit for ``trading_day`` from broker state, the
     strategy signals on the prior-session close, and the portfolio core. Pure."""
     config = spec.config
-    strategy = resolve_strategy(spec.strategy_name, spec.params)
     symbols = sorted(frames)
     state = state_from_broker(broker, symbols)
     state.peak_equity = max(peak_equity, portfolio_equity(state, {}))
@@ -225,6 +224,11 @@ def plan_cycle(
             continue
         row = frame.iloc[idx]
         pos = state.positions.get(sym, PortfolioPosition(symbol=sym))
+        # Resolve a FRESH strategy instance per symbol so a single-run stateful
+        # strategy (e.g. the ML classifier, which carries ``_bars_held``) gets an
+        # isolated counter and one symbol's state cannot bleed into another's
+        # signal. The stateless rule strategies are unaffected (identical orders).
+        strategy = resolve_strategy(spec.strategy_name, spec.params)
         decision = strategy.generate_signal(
             row, Position(quantity=pos.quantity, entry_price=pos.entry_price)
         )

@@ -26,7 +26,7 @@ Execution model (unchanged in shape from Phase 1/2, now portfolio-wide)
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 
 import pandas as pd
@@ -47,6 +47,16 @@ from app.backtesting.portfolio_core import (
 from app.strategies.base_strategy import BaseStrategy, Position
 
 log = logging.getLogger(__name__)
+
+# What the driver accepts for "the strategy": either one shared instance (the
+# original contract, kept for the stateless rule strategies and every existing
+# caller), a per-symbol mapping of instances, or a factory that builds a fresh
+# instance for a given symbol. The latter two give a stateful strategy (e.g. the
+# ML classifier, which carries ``_bars_held``) an ISOLATED instance per symbol so
+# one symbol's holding counter cannot bleed into another's signal.
+StrategyResolvable = (
+    BaseStrategy | Mapping[str, BaseStrategy] | Callable[[str], BaseStrategy]
+)
 
 
 @dataclass
@@ -88,19 +98,56 @@ def align_frames(
     return symbols, timeline, aligned
 
 
+def _resolve_strategies(
+    strategy: StrategyResolvable, symbols: Sequence[str]
+) -> dict[str, BaseStrategy]:
+    """Resolve ``strategy`` into one ``BaseStrategy`` instance per symbol.
+
+    - A single ``BaseStrategy`` is shared across every symbol — the original
+      behaviour, exact and unchanged, which is correct for the stateless rule
+      strategies and every pre-existing caller.
+    - A ``Mapping[str, BaseStrategy]`` supplies an explicit instance per symbol;
+      every walked symbol must have one.
+    - A ``Callable[[str], BaseStrategy]`` is a factory invoked once per symbol.
+
+    The mapping/factory paths give a single-run *stateful* strategy (the ML
+    classifier carries ``self._bars_held``) an isolated instance per symbol, so a
+    held symbol's bar counter cannot corrupt another symbol's signal.
+    """
+    if isinstance(strategy, BaseStrategy):
+        return dict.fromkeys(symbols, strategy)
+    if isinstance(strategy, Mapping):
+        missing = [s for s in symbols if s not in strategy]
+        if missing:
+            raise ValueError(
+                "Per-symbol strategy mapping is missing instance(s) for: "
+                f"{', '.join(missing)}."
+            )
+        return {s: strategy[s] for s in symbols}
+    if callable(strategy):
+        return {s: strategy(s) for s in symbols}
+    raise TypeError(
+        "strategy must be a BaseStrategy, a Mapping[str, BaseStrategy], or a "
+        f"Callable[[str], BaseStrategy]; got {type(strategy).__name__}."
+    )
+
+
 def run_portfolio_backtest(
     frames: Mapping[str, pd.DataFrame],
-    strategy: BaseStrategy,
+    strategy: StrategyResolvable,
     config: PortfolioConfig,
 ) -> PortfolioBacktestResult:
     """Walk the common timeline and produce the portfolio equity curve + trades.
 
     ``frames`` maps each symbol to its featured OHLCV frame (indicators already
-    appended). ``strategy`` is one resolved strategy applied per symbol (the
-    strategies are stateless across symbols). ``config`` holds capital, costs,
-    sizing, and the portfolio risk limits.
+    appended). ``strategy`` is either one shared instance applied to every symbol
+    (the original contract, fine for the stateless rule strategies) or — for a
+    stateful strategy like the ML classifier — a per-symbol mapping or factory so
+    each symbol decides on its own isolated instance (see ``_resolve_strategies``).
+    ``config`` holds capital, costs, sizing, and the portfolio risk limits.
     """
     symbols, timeline, aligned = align_frames(frames)
+    strategies = _resolve_strategies(strategy, symbols)
     n = len(timeline)
     state = PortfolioState(
         cash=float(config.initial_capital),
@@ -170,7 +217,7 @@ def run_portfolio_backtest(
             if pd.isna(row.get("open")) or pd.isna(row.get("close")):
                 continue
             pos = state.positions[sym]
-            decision = strategy.generate_signal(
+            decision = strategies[sym].generate_signal(
                 row, Position(quantity=pos.quantity, entry_price=pos.entry_price)
             )
             # Built through the core's shared helper so the live runner (M3)
@@ -207,9 +254,16 @@ def run_portfolio_backtest(
                 halt_ts = rec.timestamp
                 break
 
+    # Every per-symbol instance is the same strategy type, so any one names the
+    # run; for the shared-instance path that is exactly the prior ``strategy.name``.
+    strategy_name = (
+        strategy.name
+        if isinstance(strategy, BaseStrategy)
+        else (next(iter(strategies.values())).name if strategies else "portfolio")
+    )
     return PortfolioBacktestResult(
         symbols=symbols,
-        strategy_name=strategy.name,
+        strategy_name=strategy_name,
         initial_capital=float(config.initial_capital),
         final_equity=final_equity,
         total_return_pct=total_return_pct,

@@ -173,6 +173,66 @@ class MLWalkForwardRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Multi-symbol portfolio walk-forward evaluation request (M6)
+# ---------------------------------------------------------------------------
+
+
+class MLPortfolioWalkForwardRequest(BaseModel):
+    """Inputs for a multi-symbol ML walk-forward through the Phase 3 portfolio core.
+
+    ``symbols`` is BOTH the pooled training basket and the OOS basket: one pooled
+    model per split is driven multi-symbol through the shared portfolio core and
+    judged per symbol and against the rule / buy-and-hold-basket / single-position
+    baselines, net of fees. Unlike the single-symbol walk-forward there is no
+    ``eval_symbol`` — every symbol is scored as part of the portfolio.
+    """
+
+    symbols: list[str] = Field(min_length=1, description="Pooled + OOS basket (>=1).")
+
+    # Walk-forward policy
+    scheme: str = Field(
+        default="anchored",
+        description="'anchored' (expanding window) or 'rolling' (fixed window).",
+    )
+    in_sample_dates: int = Field(default=504, ge=2)
+    out_sample_dates: int = Field(default=126, ge=2)
+    step_dates: int = Field(default=126, ge=1)
+
+    # Feature/label knobs
+    horizon: int = Field(default=5, ge=1)
+    deadband: float = Field(default=0.0, ge=0.0)
+
+    # Portfolio execution config (PortfolioConfig knobs)
+    fee_bps: float = Field(default=5.0, ge=0, le=1000)
+    slippage_bps: float = Field(default=5.0, ge=0, le=1000)
+    initial_capital: float = Field(default=100_000.0, gt=0)
+    target_vol: float | None = Field(default=None, gt=0)
+    vol_lookback: int = Field(default=20, ge=1)
+    max_position_pct: float = Field(default=0.95, gt=0, le=1.0)
+    gross_exposure_cap: float = Field(default=1.0, gt=0)
+    max_open_positions: int = Field(default=5, ge=1)
+    per_order_notional_cap: float | None = Field(default=None, gt=0)
+    stop_loss_pct: float | None = Field(default=None, gt=0, le=1.0)
+    take_profit_pct: float | None = Field(default=None, gt=0)
+    max_drawdown_cutoff_pct: float | None = Field(default=None, gt=0, le=1.0)
+
+    # Significance
+    seed: int = Field(default=42)
+    n_config_trials: int | None = Field(
+        default=None, ge=1,
+        description="DSR trial count override; defaults to the documented floor.",
+    )
+
+    @model_validator(mode="after")
+    def _symbols_not_empty(self) -> MLPortfolioWalkForwardRequest:
+        cleaned = [s.strip() for s in self.symbols if s.strip()]
+        if not cleaned:
+            raise ValueError("symbols must contain at least one non-empty string.")
+        self.symbols = cleaned
+        return self
+
+
+# ---------------------------------------------------------------------------
 # Pinned-model backtest request
 # ---------------------------------------------------------------------------
 
