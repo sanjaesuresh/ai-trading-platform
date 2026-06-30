@@ -81,6 +81,21 @@ BASE_MC = "monte_carlo_ensemble"
 # sample feeds PBO so the candidate set stays a handful of comparable strategies.
 _PBO_MC_SAMPLE = 4
 
+# Factors used by ``default_n_config_trials`` to enumerate the effective search space.
+# Each constant is a conservative documented lower bound; override the trial count at
+# call time with the true search size if the actual hyperparameter sweep was larger.
+#
+# _N_LGBM_GRID: 4 commonly-tuned LightGBM knobs (n_estimators, num_leaves,
+#     min_child_samples, learning_rate) × 2 candidate values each = 16 grid points.
+#     Any real sweep will exceed this.
+_N_LGBM_GRID: int = 16
+# _N_HORIZON: at minimum two horizon choices typically evaluated (5-day, 10-day)
+#     before selecting one for the reported model.
+_N_HORIZON: int = 2
+# _N_DEADBAND: at minimum three label deadband/threshold values evaluated (0 %,
+#     0.5 %, 1 %) before selection; on/off alone understates the real search.
+_N_DEADBAND: int = 3
+
 # Logistic floor: enough iterations to converge on standardized features.
 _LOGISTIC_MAX_ITER = 1_000
 
@@ -132,6 +147,7 @@ class SplitResult:
     baselines: dict[str, StrategyScore]
     mc_returns: tuple[float, ...]  # total_return_pct of every MC ensemble run
     mc_sample_per_bar: tuple[tuple[float, ...], ...]  # per-bar returns, PBO sample
+    mc_mean_turnover: float  # mean annualized turnover of the MC ensemble on this split
     classification: dict[str, float]  # auc, brier (nan when single-class)
     beats: dict[str, bool]
 
@@ -150,6 +166,7 @@ class SplitResult:
             "model": self.model.to_dict(),
             "baselines": {k: v.to_dict() for k, v in self.baselines.items()},
             "mc_returns": [float(r) for r in self.mc_returns],
+            "mc_mean_turnover": float(self.mc_mean_turnover),
             "classification": {k: float(v) for k, v in self.classification.items()},
             "beats": {k: bool(v) for k, v in self.beats.items()},
         }
@@ -373,18 +390,27 @@ def _compound(returns_pct: Sequence[float]) -> float:
 def default_n_config_trials(config: TrainingConfig) -> int:
     """Documented default for the deflated-Sharpe trial count N (§8).
 
-    N counts the tuned knobs a researcher effectively searched, so the DSR raises
-    the false-discovery bar accordingly. The default enumerates:
+    N counts the effective number of configurations a researcher searched, so the
+    DSR raises the false-discovery bar accordingly. The default enumerates every
+    axis of the documented search space and is a FLOOR, not the real search size —
+    any production hyperparameter sweep will exceed it. Always override with the
+    true search size when reporting persisted results.
+
+    Factors (all are module-level constants so callers reference names, not numbers):
 
     - enter-threshold grid: ``len(enter grid)`` candidates,
     - deadband on/off: x2,
     - hysteresis gap chosen/not: x2,
     - min-hold chosen/not: x2,
     - uniqueness weighting on/off: x2,
-    - feature-set version (single v1) and a single LightGBM hyperparameter set: x1.
+    - LightGBM hyperparameter grid: x``_N_LGBM_GRID``
+      (4 knobs × 2 candidate values each — conservative floor; a real sweep is larger),
+    - forecast horizon choices: x``_N_HORIZON``
+      (e.g. 5-day vs 10-day, evaluated before selecting one),
+    - label deadband/threshold choices: x``_N_DEADBAND``
+      (3 values — understating on/off alone is too optimistic).
 
-    So ``N = enter_grid_size * 16``. The caller may override with a different count
-    (e.g. the true size of a hyperparameter sweep that was actually run).
+    So ``N = enter_grid_size * 16 * _N_LGBM_GRID * _N_HORIZON * _N_DEADBAND``.
     """
     grid = np.arange(
         config.enter_grid_lo,
@@ -392,7 +418,7 @@ def default_n_config_trials(config: TrainingConfig) -> int:
         config.enter_grid_step,
     )
     enter_grid_size = max(1, int(grid.size))
-    return enter_grid_size * 16
+    return enter_grid_size * 16 * _N_LGBM_GRID * _N_HORIZON * _N_DEADBAND
 
 
 # ---------------------------------------------------------------------------
@@ -429,6 +455,16 @@ def evaluate_ml_walk_forward(
     in-sample fold) is recorded as skipped, never fatal.
     """
     from app.evaluation.walk_forward import generate_purged_splits
+
+    # Guard overlapping OOS windows: when step_dates < out_sample_dates consecutive
+    # test windows overlap, which would double-count OOS bars in the aggregate and
+    # inflate performance metrics. Disjoint windows require step >= out_sample_dates.
+    if step_dates < out_sample_dates:
+        raise ValueError(
+            f"step_dates={step_dates} < out_sample_dates={out_sample_dates}: "
+            "overlapping test windows would double-count OOS bars and inflate the "
+            "aggregate. Set step_dates >= out_sample_dates for disjoint windows."
+        )
 
     training_config = training_config or TrainingConfig()
     if n_config_trials is None:
@@ -536,7 +572,7 @@ def evaluate_ml_walk_forward(
 
         # --- Monte-Carlo random ensemble at the model's in-market fraction ---
         p = float(model_score.metrics.exposure_pct) / 100.0
-        mc_returns, mc_sample = _monte_carlo_ensemble(
+        mc_returns, mc_sample, mc_mean_turn = _monte_carlo_ensemble(
             oos_frame, eval_symbol, p, model.min_hold, mc_runs, seed,
             initial_capital, fee_bps, slippage_bps,
         )
@@ -566,6 +602,7 @@ def evaluate_ml_walk_forward(
                 baselines=baselines,
                 mc_returns=tuple(float(r) for r in mc_returns),
                 mc_sample_per_bar=tuple(tuple(r) for r in mc_sample),
+                mc_mean_turnover=mc_mean_turn,
                 classification=classification,
                 beats=beats,
             )
@@ -654,15 +691,20 @@ def _monte_carlo_ensemble(
     initial_capital: float,
     fee_bps: float,
     slippage_bps: float,
-) -> tuple[list[float], list[tuple[float, ...]]]:
+) -> tuple[list[float], list[tuple[float, ...]], float]:
     """Run ``mc_runs`` seeded random long/flat strategies on the OOS frame.
 
-    Returns each run's total return % and, for the first ``_PBO_MC_SAMPLE`` runs,
-    its per-bar return series (so PBO sees a few random columns alongside the real
-    candidates).
+    Returns:
+    - each run's total return %,
+    - for the first ``_PBO_MC_SAMPLE`` runs its per-bar return series (so PBO sees
+      a few random columns alongside the real candidates),
+    - the mean annualized turnover of the full MC ensemble (so a reviewer can check
+      whether an MC win is cost-driven — the random null churning more than the model
+      inflates MC returns relative to a low-turnover model).
     """
     returns: list[float] = []
     sample: list[tuple[float, ...]] = []
+    turnovers: list[float] = []
     for run in range(mc_runs):
         strat = _RandomLongFlatStrategy(p=p, min_hold=min_hold, seed=seed + run)
         res = run_backtest(
@@ -670,9 +712,11 @@ def _monte_carlo_ensemble(
             fee_bps=fee_bps, slippage_bps=slippage_bps,
         )
         returns.append(float(res.total_return_pct))
+        turnovers.append(_turnover_annualized(res))
         if run < _PBO_MC_SAMPLE:
             sample.append(tuple(float(r) for r in _per_bar_returns(res)))
-    return returns, sample
+    mc_mean_turnover = float(np.mean(turnovers)) if turnovers else 0.0
+    return returns, sample, mc_mean_turnover
 
 
 def _classification_metrics(
@@ -735,6 +779,20 @@ def _aggregate(
     else:
         var_trial = 0.0
 
+    # Floor the cross-split variance with the Lo (2002) sampling variance of the
+    # per-period Sharpe estimator under the false-strategy null:
+    #
+    #   sharpe_sampling_var = (1 + 0.5 * SR²) / n_eff
+    #
+    # This ensures the DSR multiple-testing correction never silently vanishes when
+    # cross-split dispersion is ~0 (e.g. single split, or all splits return the same
+    # Sharpe). Without this floor, var_trial = 0 → expected_max_sharpe = 0 →
+    # DSR collapses to PSR(benchmark=0), erasing the entire correction and potentially
+    # flipping a fail to a pass. Guard n_eff_floor >= 1 to avoid division by zero.
+    n_eff_floor = max(1.0, n_eff)
+    sharpe_sampling_var = (1.0 + 0.5 * moments.sharpe ** 2) / n_eff_floor
+    var_trial = max(var_trial, sharpe_sampling_var)
+
     # Track length = the uniqueness-adjusted effective sample size, rounded to an
     # integer count (overlapping H-day labels over-count the raw bar total). PSR's
     # finite-track correction takes an integer observation count.
@@ -763,6 +821,21 @@ def _aggregate(
     beats_bh = agg_model_ret > agg_bh
     beats_rule = agg_model_ret > agg_rule
     beats_log = agg_model_ret > agg_log
+
+    # Per-baseline per-split WIN COUNTS: how many non-skipped splits the model
+    # beat each baseline. The aggregate beats-test can be carried by one outsized
+    # split; these counts make that auditable (M5 renders them for visibility).
+    splits_beating_bh = sum(1 for s in splits if s.beats.get(BASE_BUY_AND_HOLD, False))
+    splits_beating_rule = sum(1 for s in splits if s.beats.get(BASE_RULE, False))
+    splits_beating_log = sum(1 for s in splits if s.beats.get(BASE_LOGISTIC, False))
+    n_splits_evaluated = len(splits)
+
+    # MC ensemble mean turnover: placed alongside the model's mean turnover so a
+    # reviewer can detect cost-driven MC wins (random null churning more than a
+    # low-turnover model inflates MC returns relative to the model).
+    mc_mean_turn_agg = float(
+        np.mean([s.mc_mean_turnover for s in splits]) if splits else 0.0
+    )
 
     decision = verdict(
         beats_buy_and_hold=beats_bh,
@@ -795,9 +868,17 @@ def _aggregate(
         "mean_turnover_annualized": float(
             np.mean([s.model.turnover_annualized for s in splits]) if splits else 0.0
         ),
+        "mc_mean_turnover_annualized": mc_mean_turn_agg,
         "beats_buy_and_hold": float(beats_bh),
         "beats_rule": float(beats_rule),
         "beats_logistic": float(beats_log),
+        # Per-split win counts: how many of the n_splits_evaluated non-skipped
+        # splits the model beat each baseline. Use these to detect an outsized
+        # single-split carry in the aggregate beats.
+        "splits_beating_buy_and_hold": float(splits_beating_bh),
+        "splits_beating_rule": float(splits_beating_rule),
+        "splits_beating_logistic": float(splits_beating_log),
+        "n_splits_evaluated": float(n_splits_evaluated),
     }
     aggregate_baselines = {
         BASE_BUY_AND_HOLD: _aggregate_baseline(splits, BASE_BUY_AND_HOLD, agg_bh),

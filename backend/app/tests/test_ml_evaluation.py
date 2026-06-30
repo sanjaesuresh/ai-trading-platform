@@ -217,3 +217,98 @@ def test_classification_metrics_present_or_nan() -> None:
 def test_caller_can_override_trial_count(override: dict[str, object]) -> None:
     result = _evaluate(_frames(), **override)
     assert result.significance.n_config_trials == 999
+
+
+# ---------------------------------------------------------------------------
+# Finding #2 — DSR variance floor must not silently vanish on few splits
+# ---------------------------------------------------------------------------
+
+
+def test_dsr_variance_floor_positive_on_single_split() -> None:
+    """With one non-skipped split, cross-split Sharpe variance is 0 before flooring.
+
+    The Lo (2002) sampling-variance floor must keep var_trial_sharpes > 0 so the
+    deflation correction is actually applied (DSR < PSR(benchmark=0)). This test
+    proves the floor works: even on a single-split run, var_trial_sharpes is positive
+    and DSR is strictly below PSR at benchmark=0 when n_config_trials > 1.
+    """
+    from app.ml.significance import probabilistic_sharpe_ratio
+
+    # in_sample=300, step=200 → second step would start at 500 > 420 rows, so at
+    # most one non-skipped split, giving cross-split variance = 0 before flooring.
+    result = _evaluate(
+        _frames(),
+        in_sample_dates=300,
+        out_sample_dates=100,
+        step_dates=200,
+    )
+    sig = result.significance
+    assert sig.var_trial_sharpes > 0.0, (
+        "var_trial_sharpes must be > 0 after the Lo (2002) sampling-variance floor; "
+        f"got {sig.var_trial_sharpes}"
+    )
+    # If the track is long enough to be non-nan, verify deflation is actually applied.
+    n_track = int(round(sig.n_eff))
+    if not math.isnan(sig.deflated_sharpe) and n_track >= 2 and sig.n_config_trials > 1:
+        psr_0 = probabilistic_sharpe_ratio(
+            sig.sharpe, n_track, sig.skew, sig.kurtosis, 0.0
+        )
+        if not math.isnan(psr_0):
+            assert sig.deflated_sharpe < psr_0, (
+                "DSR must be < PSR(benchmark=0) when var_trial_sharpes > 0 and "
+                f"n_config_trials > 1; DSR={sig.deflated_sharpe:.4f}, "
+                f"PSR(0)={psr_0:.4f}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Finding #3 — per-split win counts and MC turnover visibility
+# ---------------------------------------------------------------------------
+
+
+def test_per_split_win_counts_present_and_sane() -> None:
+    """Per-baseline per-split win counts are in aggregate_model and in valid range."""
+    result = _evaluate(_frames())
+    m = result.aggregate_model
+    n_splits = int(m["n_splits_evaluated"])
+    assert n_splits == len(result.splits)
+    for key in (
+        "splits_beating_buy_and_hold",
+        "splits_beating_rule",
+        "splits_beating_logistic",
+    ):
+        count = int(m[key])
+        assert 0 <= count <= n_splits, (
+            f"{key}={count} out of [0, {n_splits}]"
+        )
+
+
+def test_mc_turnover_present_alongside_model_turnover() -> None:
+    """Both model and MC mean turnovers are present and non-negative in aggregate_model."""
+    result = _evaluate(_frames())
+    m = result.aggregate_model
+    assert "mean_turnover_annualized" in m
+    assert "mc_mean_turnover_annualized" in m
+    assert m["mean_turnover_annualized"] >= 0.0
+    assert m["mc_mean_turnover_annualized"] >= 0.0
+
+
+def test_mc_mean_turnover_in_split_to_dict() -> None:
+    """mc_mean_turnover is serialized in SplitResult.to_dict()."""
+    result = _evaluate(_frames())
+    for split in result.splits:
+        assert split.mc_mean_turnover >= 0.0
+        d = split.to_dict()
+        assert "mc_mean_turnover" in d
+        assert d["mc_mean_turnover"] >= 0.0
+
+
+# ---------------------------------------------------------------------------
+# Finding #4 — overlapping OOS window guard
+# ---------------------------------------------------------------------------
+
+
+def test_overlapping_oos_windows_raises() -> None:
+    """step_dates < out_sample_dates produces overlapping test windows → ValueError."""
+    with pytest.raises(ValueError, match="overlapping"):
+        _evaluate(_frames(), step_dates=30, out_sample_dates=60)

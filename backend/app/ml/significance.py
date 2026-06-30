@@ -372,6 +372,17 @@ def verdict(
         reasons.append("deflated_sharpe is nan (degenerate track): inconclusive")
         return ModelVerdict(verdict="inconclusive", reasons=reasons)
 
+    # nan pbo means CSCV could not run (too few observations / configurations) —
+    # that is missing evidence, not a failure, so report "inconclusive".
+    if math.isnan(pbo):
+        reasons.append("pbo is nan (CSCV could not run — too few splits/configs): inconclusive")
+        return ModelVerdict(verdict="inconclusive", reasons=reasons)
+
+    # nan mc_percentile means no MC ensemble runs completed — same reasoning.
+    if math.isnan(mc_percentile):
+        reasons.append("mc_percentile is nan (no MC ensemble runs): inconclusive")
+        return ModelVerdict(verdict="inconclusive", reasons=reasons)
+
     # --- evaluate every pass condition ---
     all_pass = True
 

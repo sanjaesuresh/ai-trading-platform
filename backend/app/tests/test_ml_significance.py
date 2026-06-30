@@ -368,3 +368,30 @@ def test_verdict_constants_match_thresholds() -> None:
     assert MC_PASS_PERCENTILE == 0.95
     assert DSR_PASS == 0.95
     assert PBO_MAX == 0.5
+
+
+def test_verdict_nan_pbo_is_inconclusive_not_fail() -> None:
+    """nan PBO means CSCV could not run (missing evidence) → inconclusive, not fail.
+
+    Without this guard, nan ≤ PBO_MAX is False so the run would be reported as
+    "fail" rather than "inconclusive" — misleadingly attributing failure to
+    overfitting when the test simply did not run.
+    """
+    v = verdict(**{**_PASS_KWARGS, "pbo": float("nan")})  # type: ignore[arg-type]
+    assert v.verdict == "inconclusive", (
+        f"nan PBO must yield 'inconclusive', got {v.verdict!r}"
+    )
+    assert any("pbo" in r.lower() for r in v.reasons)
+
+
+def test_verdict_nan_mc_percentile_is_inconclusive_not_fail() -> None:
+    """nan mc_percentile means no MC runs completed → inconclusive, not fail.
+
+    Without this guard, nan >= MC_PASS_PERCENTILE is False so the run would be
+    reported as "fail" rather than "inconclusive".
+    """
+    v = verdict(**{**_PASS_KWARGS, "mc_percentile": float("nan")})  # type: ignore[arg-type]
+    assert v.verdict == "inconclusive", (
+        f"nan mc_percentile must yield 'inconclusive', got {v.verdict!r}"
+    )
+    assert any("mc_percentile" in r.lower() for r in v.reasons)
