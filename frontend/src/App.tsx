@@ -8,6 +8,9 @@ import EvaluationDetail from './pages/EvaluationDetail'
 import Ingestion from './pages/Ingestion'
 import PaperTrading from './pages/PaperTrading'
 import PaperDeploymentDetail from './pages/PaperDeploymentDetail'
+import MLModels from './pages/MLModels'
+import MLModelDetail from './pages/MLModelDetail'
+import MLEvaluationDetail from './pages/MLEvaluationDetail'
 
 function NavBar() {
   const linkCls = ({ isActive }: { isActive: boolean }) =>
@@ -55,6 +58,11 @@ function NavBar() {
                 Ingestion
               </NavLink>
             </li>
+            <li>
+              <NavLink to="/ml" className={linkCls}>
+                ML
+              </NavLink>
+            </li>
           </ul>
         </nav>
       </div>
@@ -99,6 +107,9 @@ export default function App() {
             <Route path="/ingestion" element={<Ingestion />} />
             <Route path="/paper" element={<PaperTrading />} />
             <Route path="/paper/:id" element={<PaperDeploymentDetail />} />
+            <Route path="/ml" element={<MLModels />} />
+            <Route path="/ml/models/:id" element={<MLModelDetail />} />
+            <Route path="/ml/evaluations/:id" element={<MLEvaluationDetail />} />
           </Routes>
         </main>
       </div>
