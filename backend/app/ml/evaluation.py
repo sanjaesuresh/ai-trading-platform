@@ -95,6 +95,11 @@ _N_HORIZON: int = 2
 # _N_DEADBAND: at minimum three label deadband/threshold values evaluated (0 %,
 #     0.5 %, 1 %) before selection; on/off alone understates the real search.
 _N_DEADBAND: int = 3
+# _N_BINARY_KNOBS: the product of on/off choices for the four binary axes evaluated
+#     before selecting the reported configuration:
+#     deadband on/off × hysteresis-gap chosen/not × min-hold chosen/not ×
+#     uniqueness-weighting on/off = 2^4 = 16.
+_N_BINARY_KNOBS: int = 16
 
 # Logistic floor: enough iterations to converge on standardized features.
 _LOGISTIC_MAX_ITER = 1_000
@@ -410,7 +415,7 @@ def default_n_config_trials(config: TrainingConfig) -> int:
     - label deadband/threshold choices: x``_N_DEADBAND``
       (3 values — understating on/off alone is too optimistic).
 
-    So ``N = enter_grid_size * 16 * _N_LGBM_GRID * _N_HORIZON * _N_DEADBAND``.
+    So ``N = enter_grid_size * _N_BINARY_KNOBS * _N_LGBM_GRID * _N_HORIZON * _N_DEADBAND``.
     """
     grid = np.arange(
         config.enter_grid_lo,
@@ -418,7 +423,7 @@ def default_n_config_trials(config: TrainingConfig) -> int:
         config.enter_grid_step,
     )
     enter_grid_size = max(1, int(grid.size))
-    return enter_grid_size * 16 * _N_LGBM_GRID * _N_HORIZON * _N_DEADBAND
+    return enter_grid_size * _N_BINARY_KNOBS * _N_LGBM_GRID * _N_HORIZON * _N_DEADBAND
 
 
 # ---------------------------------------------------------------------------

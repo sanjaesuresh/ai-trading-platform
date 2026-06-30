@@ -145,9 +145,16 @@ def train_and_register(db: Session, req: MLTrainRequest) -> MLModel:
         )
 
     # Filter to train_end if requested (use all rows otherwise).
+    # Use pd.Timestamp comparison rather than string coercion: lexicographic
+    # string comparison silently drops intraday timestamps on the cutoff day
+    # (e.g. "2023-12-29 16:00" > "2023-12-29" as strings but should be <=).
+    # The cutoff is train_end-inclusive, so extend to the start of the next day.
     if req.train_end is not None:
+        import pandas as _pd
+
         cutoff = req.train_end
-        mask = panel["decision_ts"].astype(str) <= cutoff
+        cutoff_ts = _pd.Timestamp(cutoff) + _pd.Timedelta(days=1)
+        mask = panel["decision_ts"] < cutoff_ts
         panel = panel.loc[mask].reset_index(drop=True)
         if panel.empty:
             raise BacktestRequestError(

@@ -469,3 +469,74 @@ def test_upsert_ml_model_row_inserts_when_new(
     result = ml_service._upsert_ml_model_row(_TrackingDB(), meta)  # type: ignore[arg-type]
     assert len(inserted) == 1
     assert inserted[0] is result
+
+
+# ---------------------------------------------------------------------------
+# train_and_register: train_end filter — inclusive boundary
+# ---------------------------------------------------------------------------
+
+
+def test_train_and_register_train_end_inclusive_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """train_and_register includes rows ON the train_end date (inclusive boundary).
+
+    The old string comparison ("decision_ts".astype(str) <= cutoff) would drop
+    any intraday timestamp on the cutoff day because e.g.
+    "2023-06-15 16:00:00" > "2023-06-15" lexicographically. The pd.Timestamp
+    fix must retain those rows. We verify this by checking that the panel slice
+    passed to train_model includes all rows dated <= train_end, including one
+    with a non-midnight time on the cutoff day.
+    """
+    import contextlib
+
+    import pandas as pd
+
+    from app.schemas.ml import MLTrainRequest
+    from app.services import ml_service
+
+    # Build a tiny panel with three rows:
+    #   row 0 — midnight on the cutoff day  → must be included
+    #   row 1 — 16:00 on the cutoff day     → must be included (was excluded by the bug)
+    #   row 2 — one day after the cutoff    → must be excluded
+    cutoff_date = "2023-06-15"
+    panel = pd.DataFrame({
+        "decision_ts": pd.to_datetime([
+            "2023-06-15 00:00:00",
+            "2023-06-15 16:00:00",
+            "2023-06-16 00:00:00",
+        ]),
+        "label": [1, 0, 1],
+        "weight": [1.0, 1.0, 1.0],
+    })
+
+    captured_panel: list = []
+
+    def fake_build_ml_inputs(db, symbols, spec=None):  # noqa: ANN001
+        return panel.copy(), {}
+
+    def fake_train_model(p, train_idx, config=None):  # noqa: ANN001
+        captured_panel.append(p)
+        raise Exception("stop here")  # short-circuit; we only need the panel slice
+
+    monkeypatch.setattr(ml_service, "build_ml_inputs", fake_build_ml_inputs)
+    monkeypatch.setattr(ml_service, "train_model", fake_train_model)
+
+    req = MLTrainRequest(symbols=["SPY"], train_end=cutoff_date)
+    with contextlib.suppress(Exception):
+        ml_service.train_and_register(object(), req)  # type: ignore[arg-type]
+
+    assert len(captured_panel) == 1, "train_model should have been called exactly once"
+    result_panel = captured_panel[0]
+
+    # The row with an intraday timestamp on the cutoff day must be present.
+    timestamps = pd.to_datetime(result_panel["decision_ts"]).dt.normalize().unique()
+    cutoff_ts = pd.Timestamp(cutoff_date)
+    assert all(t <= cutoff_ts for t in timestamps), (
+        "Panel slice must contain only rows at or before train_end"
+    )
+    # Specifically, both rows from the cutoff date should be present.
+    assert len(result_panel) == 2, (
+        "Expected 2 rows (both on the cutoff day); got "
+        f"{len(result_panel)}. The intraday row may have been excluded."
+    )

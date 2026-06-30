@@ -4,8 +4,8 @@ Additive only — creates the ``ml_models`` table that mirrors the scalar fields
 ``registry.ModelMetadata`` for the API layer (``feature_columns`` is intentionally
 not stored). No existing Phase 1–3 table or column is touched; ML evaluation runs
 reuse the existing ``evaluation_runs`` table with the new kind values
-``"ml_walk_forward"`` and ``"ml_backtest"``, carrying ml params inside the existing
-``config`` JSON column (no column changes there).
+``"ml_walk_forward"``, ``"ml_backtest"``, and ``"ml_portfolio_wf"``, carrying ml
+params inside the existing ``config`` JSON column (no column changes there).
 
 Revision ID: 0005_phase4_ml
 Revises: 0004_phase3

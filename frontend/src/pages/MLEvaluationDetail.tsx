@@ -47,6 +47,7 @@ function isActive(status: string): boolean {
 function kindLabel(kind: string): string {
   if (kind === 'ml_walk_forward') return 'Walk-Forward ML'
   if (kind === 'ml_backtest') return 'ML Backtest'
+  if (kind === 'ml_portfolio_wf') return 'Portfolio ML Walk-Forward'
   return kind
 }
 
@@ -584,6 +585,111 @@ function WalkForwardResults({ results }: { results: MLWalkForwardResult }) {
 }
 
 // ---------------------------------------------------------------------------
+// API-only kind notice (ml_backtest / ml_portfolio_wf)
+// ---------------------------------------------------------------------------
+
+/**
+ * Shown for completed runs whose kind is not yet rendered in the UI
+ * (ml_backtest and ml_portfolio_wf). Rather than the misleading
+ * "results not available", we tell the user explicitly that the data
+ * exists and where to find it, and we surface any headline numbers
+ * present in the results JSON.
+ */
+function ApiOnlyKindNote({
+  kind,
+  results,
+}: {
+  kind: string
+  results: Record<string, unknown>
+}) {
+  const totalReturn = typeof results.total_return_pct === 'number'
+    ? results.total_return_pct
+    : undefined
+  const numTrades = typeof results.num_trades === 'number'
+    ? results.num_trades
+    : undefined
+  const beatsAll =
+    typeof results.beats_all_baselines === 'boolean'
+      ? results.beats_all_baselines
+      : undefined
+  const dsr =
+    typeof (results.significance as Record<string, unknown> | undefined)
+      ?.deflated_sharpe === 'number'
+      ? ((results.significance as Record<string, unknown>).deflated_sharpe as number)
+      : undefined
+
+  return (
+    <div className="space-y-4">
+      <div
+        role="note"
+        className="bg-zinc-900 border border-zinc-700 rounded p-5 space-y-2"
+      >
+        <p className="text-sm font-medium text-zinc-300">
+          {kindLabel(kind)} results are not viewable in the UI yet.
+        </p>
+        <p className="text-sm text-zinc-500">
+          This evaluation completed successfully. Inspect its full results via
+          the API:{' '}
+          <code className="font-mono text-xs text-zinc-400">
+            GET /ml/evaluations/{'{id}'}
+          </code>
+          . The result JSON is stored in the{' '}
+          <code className="font-mono text-xs text-zinc-400">results</code>{' '}
+          field of the response.
+        </p>
+      </div>
+
+      {/* Headline numbers that are present in the results blob */}
+      {(totalReturn !== undefined ||
+        numTrades !== undefined ||
+        beatsAll !== undefined ||
+        dsr !== undefined) && (
+        <section aria-labelledby="api-only-headline" className="space-y-3">
+          <SectionHeader
+            id="api-only-headline"
+            title="Headline Numbers"
+            subtitle="Available from the results JSON. These are simulated figures — not financial advice."
+          />
+          <StatGrid cols="grid-cols-2 md:grid-cols-4">
+            {totalReturn !== undefined && (
+              <Stat
+                label="Total Return"
+                value={formatSignedPercent(totalReturn)}
+                tone={totalReturn > 0 ? 'pos' : totalReturn < 0 ? 'neg' : 'default'}
+                hint="Simulated total return net of fees and slippage."
+              />
+            )}
+            {numTrades !== undefined && (
+              <Stat
+                label="Trades"
+                value={String(numTrades)}
+                hint="Number of round-trip trades executed in the backtest."
+              />
+            )}
+            {beatsAll !== undefined && (
+              <Stat
+                label="Beats All Baselines"
+                value={beatsAll ? 'Yes' : 'No'}
+                tone={beatsAll ? 'pos' : 'neg'}
+                hint="Whether the portfolio ML model beat every baseline in aggregate."
+              />
+            )}
+            {dsr !== undefined && (
+              <Stat
+                label="Deflated Sharpe (DSR)"
+                value={fmtNum(dsr)}
+                tone={dsr > 0 ? 'pos' : dsr < 0 ? 'neg' : 'default'}
+                hint="Multiple-testing-adjusted Sharpe. Positive = evidence of edge after accounting for the search space."
+              />
+            )}
+          </StatGrid>
+        </section>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
@@ -601,9 +707,14 @@ export default function MLEvaluationDetail() {
     if (data) setActive(isActive(data.status))
   }, [data])
 
-  const hasResults =
+  const hasWalkForwardResults =
     data?.status === 'completed' &&
+    data.kind === 'ml_walk_forward' &&
     data.results.verdict !== undefined
+
+  const isApiOnlyKind =
+    data?.status === 'completed' &&
+    (data.kind === 'ml_backtest' || data.kind === 'ml_portfolio_wf')
 
   const provenance: ProvenanceItem[] = data
     ? [
@@ -680,9 +791,14 @@ export default function MLEvaluationDetail() {
                 This evaluation failed. Check the worker logs for the cause.
               </p>
             </div>
-          ) : hasResults ? (
+          ) : hasWalkForwardResults ? (
             <WalkForwardResults
               results={data.results as MLWalkForwardResult}
+            />
+          ) : isApiOnlyKind ? (
+            <ApiOnlyKindNote
+              kind={data.kind}
+              results={data.results as Record<string, unknown>}
             />
           ) : (
             <div className="bg-zinc-900 border border-zinc-800 rounded p-5">

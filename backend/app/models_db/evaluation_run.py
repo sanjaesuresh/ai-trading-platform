@@ -24,7 +24,7 @@ class EvaluationRun(Base):
     __tablename__ = "evaluation_runs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    # "sweep" | "walk_forward"
+    # "sweep" | "walk_forward" | "ml_walk_forward" | "ml_backtest" | "ml_portfolio_wf"
     kind: Mapped[str] = mapped_column(String(16), nullable=False)
     symbol: Mapped[str] = mapped_column(String(32), nullable=False)
     strategy_name: Mapped[str] = mapped_column(String(64), nullable=False)
