@@ -152,6 +152,15 @@ function WalkForwardLauncher() {
       return
     }
 
+    const outSample = parseInt(outSampleDates, 10) || 126
+    const step = parseInt(stepDates, 10) || 126
+    if (step < outSample) {
+      setFormErr(
+        `Step bars (${step}) must be ≥ OOS bars (${outSample}) to avoid overlapping test windows.`,
+      )
+      return
+    }
+
     setSubmitting(true)
     try {
       const result = await runMLWalkForward({

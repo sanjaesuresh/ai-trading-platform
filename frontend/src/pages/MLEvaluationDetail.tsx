@@ -73,7 +73,7 @@ const VERDICT_CONFIGS: Record<MLVerdict, VerdictConfig> = {
   pass: {
     label: 'PASS',
     description:
-      'The model passed the full significance battery net of costs: it beat all baselines in aggregate, the deflated Sharpe is positive, PBO is low, and it ranked above the Monte-Carlo random ensemble.',
+      'The model passed the full significance battery net of costs: it beat all baselines in aggregate, the deflated Sharpe is positive, PBO is low, and it ranked above the Monte-Carlo random ensemble. This means the strategy survived this significance battery — nothing more. It is not a signal to trade real money.',
     bg: 'bg-emerald-950/70',
     border: 'border-emerald-800',
     textColor: 'text-emerald-400',
@@ -118,7 +118,6 @@ function VerdictBlock({
         <h2
           id="verdict-heading"
           className={`text-2xl font-semibold font-mono tracking-tight ${cfg.textColor}`}
-          aria-label={`Verdict: ${cfg.label}`}
         >
           {cfg.label}
         </h2>
@@ -247,13 +246,13 @@ function BaselineComparison({ results }: { results: MLWalkForwardResult }) {
                 </tr>
               )
             })}
-            {/* MC ensemble pseudo-row */}
+            {/* MC ensemble pseudo-row — turnover goes in the Turnover column, not Total Return */}
             <tr className="hover:bg-zinc-800/10 transition-colors">
               <Td className="text-zinc-500 italic text-xs">MC Ensemble (random null)</Td>
-              <Td mono align="right" className="text-zinc-500 text-xs">
-                {fmtNum(am.mc_mean_turnover_annualized)}×/yr turnover
-              </Td>
               <Td mono align="right" className="text-zinc-500">—</Td>
+              <Td mono align="right" className="text-zinc-500 text-xs">
+                {fmtNum(am.mc_mean_turnover_annualized)}×/yr
+              </Td>
               <Td mono align="right" className="text-zinc-500">—</Td>
               <Td mono align="right" className="text-zinc-500">—</Td>
             </tr>
@@ -374,7 +373,7 @@ function SplitsTable({ splits }: { splits: MLSplitResult[] }) {
       <Table maxHeight="24rem">
         <thead>
           <tr className="border-b border-zinc-800">
-            <Th sticky>Test Window</Th>
+            <Th sticky className="sticky left-0 bg-zinc-950 z-20">Test Window</Th>
             <Th sticky align="right">OOS Bars</Th>
             <Th sticky align="right" sub="model">Return</Th>
             {baselineKeys.map((k) => (
@@ -394,7 +393,7 @@ function SplitsTable({ splits }: { splits: MLSplitResult[] }) {
         <tbody className="divide-y divide-zinc-800/60">
           {splits.map((s, i) => (
             <tr key={i} className="align-top hover:bg-zinc-800/20 transition-colors">
-              <Td mono className="text-zinc-400 whitespace-nowrap">
+              <Td mono className="text-zinc-400 whitespace-nowrap sticky left-0 bg-zinc-900 z-10">
                 {s.test_start.slice(0, 10)}
                 <span className="text-zinc-600">–</span>
                 {s.test_end.slice(0, 10)}
@@ -618,6 +617,9 @@ export default function MLEvaluationDetail() {
 
   return (
     <div className="space-y-6">
+      {/* Disclaimer appears in all states (loading / error / results). */}
+      <MLDisclaimer />
+
       {loading && data === null ? (
         <div
           className="bg-zinc-900 border border-zinc-800 rounded p-8 text-center motion-safe:animate-pulse"
@@ -656,8 +658,6 @@ export default function MLEvaluationDetail() {
             subtitle={`${data.strategy_name} — simulated, out-of-sample, net of costs`}
             meta={<RunStatusBadge status={data.status} />}
           />
-
-          <MLDisclaimer />
 
           <ProvenanceStrip items={provenance} />
 

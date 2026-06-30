@@ -13,7 +13,14 @@ function isActive(status: string): boolean {
 }
 
 function kindLabel(kind: string): string {
-  return kind === 'walk_forward' ? 'Walk-forward' : 'Sweep'
+  if (kind === 'walk_forward') return 'Walk-forward'
+  if (kind === 'ml_walk_forward') return 'ML Walk-forward'
+  if (kind === 'ml_backtest') return 'ML Backtest'
+  return 'Sweep'
+}
+
+function isMLKind(kind: string): boolean {
+  return kind === 'ml_walk_forward' || kind === 'ml_backtest'
 }
 
 export default function Evaluations() {
@@ -89,7 +96,7 @@ export default function Evaluations() {
                   <Td mono align="right" className="text-zinc-500">{formatDate(r.created_at)}</Td>
                   <Td align="right">
                     <Link
-                      to={`/evaluations/${r.id}`}
+                      to={isMLKind(r.kind) ? `/ml/evaluations/${r.id}` : `/evaluations/${r.id}`}
                       className="text-xs text-amber-400 hover:text-amber-300 transition-colors"
                     >
                       View →
