@@ -40,6 +40,8 @@ def create_all_tables() -> None:
         ingestion_run,
         market_data,
         ml_model,
+        news_article,
+        news_ingestion_run,
         paper_trading,
         trade,
     )
