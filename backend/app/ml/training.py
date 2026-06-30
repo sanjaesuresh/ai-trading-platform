@@ -18,6 +18,7 @@ count is recorded in the registry) so the determinism test is stable, not flaky.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -80,6 +81,14 @@ class TrainingConfig:
     enter_grid_step: float = 0.02
     min_selected: int = 20
     min_hold: int | None = None  # default = spec.horizon
+    # Optional pluggable estimator. When None (the default) the trainer fits the
+    # standard LightGBM booster with early stopping + uniqueness weighting. When
+    # set, the factory returns a fitted-on-call sklearn estimator (e.g. the
+    # logistic-regression floor in M3b) that travels through the IDENTICAL purged
+    # fit/calibrate/threshold folds, so a baseline shares one selection pipeline
+    # with the model rather than reimplementing it. Additive and backward
+    # compatible: leaving it None reproduces the prior behaviour exactly.
+    estimator_factory: Callable[[TrainingConfig], Any] | None = None
 
 
 @dataclass
@@ -217,22 +226,34 @@ def train_model(
     calib_has_both = calib_idx.size > 0 and (
         len(np.unique(panel.loc[calib_idx, COL_LABEL].astype(int))) == 2
     )
-    # Without a usable early-stopping watch set, cap the tree count so the booster
-    # can't run its full schedule unwatched on thin data.
-    base = _build_classifier(
-        config, n_estimators_cap=None if calib_has_both else _NO_EARLY_STOP_TREE_CAP
-    )
-    fit_kwargs: dict[str, Any] = {"sample_weight": w_fit}
     x_calib = panel.loc[calib_idx, cols]
     y_calib = panel.loc[calib_idx, COL_LABEL].astype(int).to_numpy()
-    if calib_has_both:
-        fit_kwargs["eval_set"] = [(x_calib, y_calib)]
-        fit_kwargs["eval_metric"] = "auc"
-        fit_kwargs["callbacks"] = [
-            lgb.early_stopping(config.early_stopping_rounds, verbose=False),
-            lgb.log_evaluation(0),
-        ]
-    base.fit(x_fit, y_fit, **fit_kwargs)
+
+    base: Any
+    if config.estimator_factory is not None:
+        # Pluggable non-LightGBM estimator (the M3b logistic floor). Early stopping
+        # and uniqueness sample-weighting are LightGBM-specific, so the generic path
+        # fits the bare estimator on the fit fold only. The estimator (e.g. a
+        # StandardScaler+LogisticRegression pipeline) therefore still sees ONLY the
+        # training rows — the no-leakage property that matters — and the SAME
+        # threshold-selection fold below chooses its enter/exit thresholds.
+        base = config.estimator_factory(config)
+        base.fit(x_fit, y_fit)
+    else:
+        # Without a usable early-stopping watch set, cap the tree count so the booster
+        # can't run its full schedule unwatched on thin data.
+        base = _build_classifier(
+            config, n_estimators_cap=None if calib_has_both else _NO_EARLY_STOP_TREE_CAP
+        )
+        fit_kwargs: dict[str, Any] = {"sample_weight": w_fit}
+        if calib_has_both:
+            fit_kwargs["eval_set"] = [(x_calib, y_calib)]
+            fit_kwargs["eval_metric"] = "auc"
+            fit_kwargs["callbacks"] = [
+                lgb.early_stopping(config.early_stopping_rounds, verbose=False),
+                lgb.log_evaluation(0),
+            ]
+        base.fit(x_fit, y_fit, **fit_kwargs)
 
     classifier: object = base
     calibrated = False
