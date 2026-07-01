@@ -21,6 +21,9 @@ dependencies = [
     "scikit-learn>=1.5",
     "scipy>=1.13",
     "joblib>=1.4",
+    # Phase 5 LLM annotation (Claude Batch API). Imported lazily inside the real
+    # client only, so the test suite and CI run without it in stub/offline mode.
+    "anthropic>=0.40",
 ]
 
 [project.optional-dependencies]

@@ -23,6 +23,7 @@ from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.core.logging import get_logger
 from app.data.ingestion.commands import run_backfill, run_incremental
+from app.data.news_ingestion.commands import run_news_backfill, run_news_incremental
 from app.models_db.evaluation_run import EvaluationRun
 from app.services.evaluation_service import (
     execute_evaluation_run,
@@ -32,6 +33,10 @@ from app.services.evaluation_service import (
 from app.services.ml_service import execute_ml_run
 from app.services.ml_service import mark_failed as ml_mark_failed
 from app.services.ml_service import mark_running as ml_mark_running
+from app.services.news_annotation_service import (
+    run_annotate_collect,
+    run_annotate_submit,
+)
 from app.services.paper_trading_service import (
     get_deployment,
     list_deployments,
@@ -214,9 +219,80 @@ async def ml_task(
         session.close()
 
 
+async def news_ingest_task(
+    ctx: dict[str, Any], *, mode: str = "incremental", symbols: list[str] | None = None
+) -> dict[str, Any]:
+    """Run a backfill or incremental NEWS ingest over *symbols* (None → universe).
+
+    Mirrors ``ingest_task``: idempotent (ON CONFLICT DO NOTHING), synchronous, run
+    off the event loop. ``mode`` defaults to ``incremental`` for the nightly cron.
+    """
+    if mode == "backfill":
+        command = run_news_backfill
+    elif mode == "incremental":
+        command = run_news_incremental
+    else:
+        raise ValueError(
+            f"Unknown news ingest mode {mode!r}; expected 'backfill' or 'incremental'."
+        )
+    log.info("News ingest task: mode=%s symbols=%s", mode, symbols)
+    runs = await asyncio.to_thread(command, symbols)
+    return {
+        "mode": mode,
+        "runs": [{"id": r.id, "symbol": r.symbol, "status": r.status} for r in runs],
+    }
+
+
+async def news_annotate_task(
+    ctx: dict[str, Any], *, phase: str = "submit"
+) -> dict[str, Any]:
+    """Run one phase of the two-phase LLM annotation pipeline (§5).
+
+    ``phase`` is ``submit`` (enqueue the day's un-annotated articles as a batch;
+    the offline stub collects synchronously), ``collect`` (retrieve completed
+    batches), or ``both`` (submit then collect — a manual run-now).
+    """
+    session = SessionLocal()
+    try:
+        summaries: list[dict[str, Any]] = []
+        if phase in ("submit", "both"):
+            s = await asyncio.to_thread(run_annotate_submit, session)
+            summaries.append(_annotate_summary_dict(s))
+        if phase in ("collect", "both"):
+            s = await asyncio.to_thread(run_annotate_collect, session)
+            summaries.append(_annotate_summary_dict(s))
+        if not summaries:
+            raise ValueError(f"Unknown annotate phase {phase!r}; expected submit/collect/both.")
+        return {"phase": phase, "summaries": summaries}
+    finally:
+        session.close()
+
+
+def _annotate_summary_dict(summary: Any) -> dict[str, Any]:
+    return {
+        "phase": summary.phase,
+        "requested": summary.requested,
+        "collected": summary.collected,
+        "persisted": summary.persisted,
+        "pending_batches": summary.pending_batches,
+    }
+
+
+async def news_annotate_submit_cron(ctx: dict[str, Any]) -> dict[str, Any]:
+    """Cron entry: SUBMIT the day's new articles as an annotation batch."""
+    return await news_annotate_task(ctx, phase="submit")
+
+
+async def news_annotate_collect_cron(ctx: dict[str, Any]) -> dict[str, Any]:
+    """Cron entry: COLLECT completed annotation batches submitted earlier."""
+    return await news_annotate_task(ctx, phase="collect")
+
+
 # Task names, derived from the function objects so the enqueue side and the
 # worker registry can never drift apart. Routes enqueue by these constants.
 INGEST_TASK_NAME = ingest_task.__name__
 EVALUATION_TASK_NAME = evaluation_task.__name__
 PAPER_RUN_TASK_NAME = paper_run_task.__name__
 ML_TASK_NAME = ml_task.__name__
+NEWS_INGEST_TASK_NAME = news_ingest_task.__name__
+NEWS_ANNOTATE_TASK_NAME = news_annotate_task.__name__

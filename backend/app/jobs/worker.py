@@ -18,6 +18,10 @@ from app.jobs.tasks import (
     evaluation_task,
     ingest_task,
     ml_task,
+    news_annotate_collect_cron,
+    news_annotate_submit_cron,
+    news_annotate_task,
+    news_ingest_task,
     paper_reconcile_cron,
     paper_run_task,
     paper_submit_cron,
@@ -39,6 +43,13 @@ _NIGHTLY_INGEST_MINUTE_UTC = 0
 _PAPER_SUBMIT_HOUR_UTC = 13
 _PAPER_RECONCILE_HOUR_UTC = 7
 
+# News: nightly ingest after the market-data ingest, then the two-phase annotate.
+# SUBMIT parks the day's batch; COLLECT (next hour) retrieves finished batches —
+# the Batch API is asynchronous, so submit and collect are separate passes (§5).
+_NEWS_INGEST_HOUR_UTC = 8
+_NEWS_ANNOTATE_SUBMIT_HOUR_UTC = 9
+_NEWS_ANNOTATE_COLLECT_HOUR_UTC = 11
+
 
 class WorkerSettings:
     """ARQ worker configuration discovered by the ``arq`` CLI."""
@@ -46,6 +57,8 @@ class WorkerSettings:
     functions = [
         ingest_task, evaluation_task, paper_run_task,
         paper_submit_cron, paper_reconcile_cron, ml_task,
+        news_ingest_task, news_annotate_task,
+        news_annotate_submit_cron, news_annotate_collect_cron,
     ]
     cron_jobs = [
         cron(
@@ -55,5 +68,8 @@ class WorkerSettings:
         ),
         cron(paper_submit_cron, hour=_PAPER_SUBMIT_HOUR_UTC, minute=0),
         cron(paper_reconcile_cron, hour=_PAPER_RECONCILE_HOUR_UTC, minute=0),
+        cron(news_ingest_task, hour=_NEWS_INGEST_HOUR_UTC, minute=0),
+        cron(news_annotate_submit_cron, hour=_NEWS_ANNOTATE_SUBMIT_HOUR_UTC, minute=0),
+        cron(news_annotate_collect_cron, hour=_NEWS_ANNOTATE_COLLECT_HOUR_UTC, minute=0),
     ]
     redis_settings = redis_settings()

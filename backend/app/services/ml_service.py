@@ -515,6 +515,10 @@ def execute_ml_run(db: Session, run: EvaluationRun) -> EvaluationRun:
         return run_ml_portfolio_walk_forward(db, run)
     if run.kind == "ml_backtest":
         return run_ml_backtest(db, run)
+    if run.kind == "ml_news_ablation":
+        from app.services.news_ablation_service import run_news_ablation_evaluation
+
+        return run_news_ablation_evaluation(db, run)
     raise ValueError(f"Unknown ML evaluation kind: {run.kind!r}.")
 
 

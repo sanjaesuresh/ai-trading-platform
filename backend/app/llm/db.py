@@ -8,7 +8,8 @@ writes results with ON CONFLICT DO NOTHING so a re-run never re-bills.
 
 from __future__ import annotations
 
-from sqlalchemy import select
+import pandas as pd
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -111,3 +112,61 @@ def persist_results(session: Session, results: list[AnnotationResult]) -> int:
     )
     session.execute(stmt)
     return len(rows)
+
+
+def load_symbol_annotations(
+    session: Session, symbol: str, prompt_version: str
+) -> pd.DataFrame:
+    """Assemble a symbol's annotated articles for the news feature builder.
+
+    Joins ``news_articles`` (which carry the per-symbol publish/first-seen
+    timestamps) to ``news_annotations`` on ``content_hash`` for the given prompt
+    version, keeping only successful annotations. Returns the columns the feature
+    builder expects: ``published_at``, ``first_seen_at``, ``sentiment``,
+    ``relevance``. Empty frame when the symbol has no usable annotated news.
+    """
+    stmt = (
+        select(
+            NewsArticle.published_at,
+            NewsArticle.first_seen_at,
+            NewsAnnotation.sentiment,
+            NewsAnnotation.relevance,
+        )
+        .join(
+            NewsAnnotation,
+            (NewsAnnotation.content_hash == NewsArticle.content_hash)
+            & (NewsAnnotation.prompt_version == prompt_version),
+        )
+        .where(NewsArticle.symbol == symbol)
+        .where(NewsAnnotation.status == "ok")
+        .order_by(NewsArticle.published_at)
+    )
+    rows = session.execute(stmt).all()
+    if not rows:
+        return pd.DataFrame(
+            columns=["published_at", "first_seen_at", "sentiment", "relevance"]
+        )
+    return pd.DataFrame(
+        rows, columns=["published_at", "first_seen_at", "sentiment", "relevance"]
+    )
+
+
+def annotation_cost_for_symbols(
+    session: Session, symbols: list[str], prompt_version: str
+) -> float:
+    """Total billed annotation spend attributable to *symbols* under a prompt version.
+
+    Sums ``cost_usd`` over every annotation (including billed-but-dropped/failed
+    ones) whose content hash appears in these symbols' articles — the honest cost
+    basis the ablation charges (§5/§6).
+    """
+    article_hashes = select(NewsArticle.content_hash).where(
+        NewsArticle.symbol.in_(symbols)
+    )
+    total = session.scalar(
+        select(func.coalesce(func.sum(NewsAnnotation.cost_usd), 0.0)).where(
+            NewsAnnotation.prompt_version == prompt_version,
+            NewsAnnotation.content_hash.in_(article_hashes),
+        )
+    )
+    return float(total or 0.0)

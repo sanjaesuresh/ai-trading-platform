@@ -74,6 +74,17 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     annotation_model: str = "claude-haiku-4-5"
 
+    # Offline news fixtures directory (Phase 5). The credential-free OfflineNews
+    # provider reads <news_data_dir>/<symbol>.json here when no Tiingo news key is
+    # set — the default CI/dev path. Default: repo-root data/news, relative to this file.
+    news_data_dir: str = str(
+        (Path(__file__).resolve().parents[3] / "data" / "news").resolve()
+    )
+
+    @property
+    def news_data_path(self) -> Path:
+        return Path(self.news_data_dir).resolve()
+
     @property
     def allowed_data_path(self) -> Path:
         return Path(self.allowed_data_dir).resolve()
