@@ -87,7 +87,12 @@ def test_mean_reversion_exit_must_be_below_entry() -> None:
 def test_list_strategies_includes_schemas() -> None:
     listed = list_strategies()
     names = {item["name"] for item in listed}
-    assert names == {"trend_following", "mean_reversion", "ml_classifier"}
+    assert names == {
+        "trend_following",
+        "mean_reversion",
+        "ml_classifier",
+        "event_overlay",
+    }
     for item in listed:
         assert "params_schema" in item
         assert "properties" in item["params_schema"]

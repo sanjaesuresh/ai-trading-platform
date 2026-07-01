@@ -19,6 +19,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 from app.strategies.base_strategy import BaseStrategy
+from app.strategies.event_overlay import EventOverlayParams, EventOverlayStrategy
 from app.strategies.mean_reversion import MeanReversionParams, MeanReversionStrategy
 from app.strategies.ml_classifier import MLClassifierParams, MLClassifierStrategy
 from app.strategies.trend_following import TrendFollowingParams, TrendFollowingStrategy
@@ -46,6 +47,7 @@ _REGISTRY: dict[str, StrategyEntry] = {
     "trend_following": StrategyEntry(TrendFollowingStrategy, TrendFollowingParams),
     "mean_reversion": StrategyEntry(MeanReversionStrategy, MeanReversionParams),
     "ml_classifier": StrategyEntry(MLClassifierStrategy, MLClassifierParams),
+    "event_overlay": StrategyEntry(EventOverlayStrategy, EventOverlayParams),
 }
 
 
