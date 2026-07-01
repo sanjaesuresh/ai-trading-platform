@@ -11,6 +11,8 @@ import PaperDeploymentDetail from './pages/PaperDeploymentDetail'
 import MLModels from './pages/MLModels'
 import MLModelDetail from './pages/MLModelDetail'
 import MLEvaluationDetail from './pages/MLEvaluationDetail'
+import News from './pages/News'
+import NewsAblationDetail from './pages/NewsAblationDetail'
 
 // Friendly labels for the nav. Routes are unchanged; only the wording is
 // softened so a first-time visitor can guess what each tab does.
@@ -22,6 +24,7 @@ const NAV_ITEMS: { to: string; label: string; end?: boolean }[] = [
   { to: '/paper', label: 'Paper' },
   { to: '/ingestion', label: 'Data' },
   { to: '/ml', label: 'ML' },
+  { to: '/news', label: 'News' },
 ]
 
 function NavBar() {
@@ -122,6 +125,8 @@ export default function App() {
             <Route path="/ml" element={<MLModels />} />
             <Route path="/ml/models/:id" element={<MLModelDetail />} />
             <Route path="/ml/evaluations/:id" element={<MLEvaluationDetail />} />
+            <Route path="/news" element={<News />} />
+            <Route path="/news/ablation/:id" element={<NewsAblationDetail />} />
           </Routes>
         </main>
         <footer className="border-t border-hairline mt-8">
