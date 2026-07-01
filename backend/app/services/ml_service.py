@@ -253,6 +253,10 @@ def _metadata_to_orm(meta: ModelMetadata) -> MLModel:
         code_dirty=bool(meta.code_dirty),
         code_diff_hash=meta.code_diff_hash,
         artifact_hash=str(meta.artifact_hash),
+        news_feature_spec_version=meta.news_feature_spec_version,
+        annotation_model_id=meta.annotation_model_id,
+        annotation_prompt_version=meta.annotation_prompt_version,
+        news_feature_config=meta.news_feature_config,
     )
 
 

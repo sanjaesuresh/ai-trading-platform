@@ -101,12 +101,19 @@ class FeatureLabelSpec:
     Stored in the model registry; the strategy asserts the live spec matches the
     model's recorded one before running, so a silent feature drift cannot feed the
     model garbage with full confidence.
+
+    ``version`` is the *price* feature-spec version (the Phase 4 global). A
+    price-plus-news model also carries ``news_version`` (the news feature-spec
+    version); both components gate independently against the live code-resident
+    registry (Phase 5 §3). ``news_version is None`` means a price-only model — its
+    validation is byte-for-byte the Phase 4 check.
     """
 
     version: str = FEATURE_SPEC_VERSION
     feature_columns: tuple[str, ...] = FEATURE_COLUMNS
     horizon: int = DEFAULT_HORIZON
     deadband: float = DEFAULT_DEADBAND
+    news_version: str | None = None
 
 
 @dataclass(frozen=True)

@@ -52,6 +52,16 @@ class MLModel(Base):
     code_diff_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
     artifact_hash: Mapped[str] = mapped_column(String(128), nullable=False)
 
+    # Phase 5 provenance (§4) — nullable so price-only models record None.
+    news_feature_spec_version: Mapped[str | None] = mapped_column(
+        String(32), nullable=True
+    )
+    annotation_model_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    annotation_prompt_version: Mapped[str | None] = mapped_column(
+        String(32), nullable=True
+    )
+    news_feature_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )

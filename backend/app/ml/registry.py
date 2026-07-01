@@ -24,7 +24,9 @@ from pathlib import Path
 
 import joblib
 
-from app.ml.features import FEATURE_SPEC_VERSION
+from app.ml import features as _features
+from app.ml import news_features as _news_features
+from app.ml.features import FeatureLabelSpec
 from app.ml.model import TrainedModel
 from app.ml.training import TrainingConfig, TrainingResult
 
@@ -111,6 +113,15 @@ class ModelMetadata:
     code_dirty: bool
     code_diff_hash: str | None
     artifact_hash: str
+    # Phase 5 provenance (§4). Defaulted so old price-only metadata JSON still loads
+    # and a price-only model records None for all of them. A price-plus-news model
+    # carries the news feature-spec version it was built under plus the annotation
+    # model id and prompt version it consumed, so a result produced under a
+    # superseded prompt is identifiable rather than conflated with a current one.
+    news_feature_spec_version: str | None = None
+    annotation_model_id: str | None = None
+    annotation_prompt_version: str | None = None
+    news_feature_config: dict[str, object] | None = None
 
 
 def _artifact_path(model_dir: Path, model_id: str) -> Path:
@@ -128,6 +139,9 @@ def save_model(
     config: TrainingConfig,
     model_dir: str | Path,
     code_version: CodeVersion | None = None,
+    annotation_model_id: str | None = None,
+    annotation_prompt_version: str | None = None,
+    news_feature_config: dict[str, object] | None = None,
 ) -> ModelMetadata:
     """Serialize a trained model and write its metadata. Returns the metadata.
 
@@ -152,6 +166,10 @@ def save_model(
         feature_columns=list(result.model.spec.feature_columns),
         horizon=result.model.spec.horizon,
         deadband=result.model.spec.deadband,
+        news_feature_spec_version=result.model.spec.news_version,
+        annotation_model_id=annotation_model_id,
+        annotation_prompt_version=annotation_prompt_version,
+        news_feature_config=dict(news_feature_config) if news_feature_config else None,
         symbols=list(symbols),
         train_start=str(result.train_start),
         train_end=str(result.train_end),
@@ -219,14 +237,51 @@ def list_models(model_dir: str | Path) -> list[ModelMetadata]:
     return sorted(metas, key=lambda m: m.train_end, reverse=True)
 
 
-def assert_live_spec(model: TrainedModel) -> None:
-    """Refuse a model whose feature spec no longer matches the live code (plan §4).
+def live_feature_versions() -> dict[str, str]:
+    """The live, code-resident version authority: {component-name -> version}.
 
-    A silent feature-spec drift would feed the model inputs that mean something
-    different from what it was trained on, with full confidence.
+    Read from the live module globals at call time (not the spec a model carries —
+    self-validation would always pass and silently lose drift detection). A model
+    is validated against THIS, component by component (Phase 5 §3).
     """
-    if model.spec.version != FEATURE_SPEC_VERSION:
-        raise ValueError(
-            f"Model feature-spec '{model.spec.version}' does not match the live "
-            f"spec '{FEATURE_SPEC_VERSION}'; refusing to run a stale model."
-        )
+    return {
+        "price": _features.FEATURE_SPEC_VERSION,
+        "news": _news_features.NEWS_FEATURE_SPEC_VERSION,
+    }
+
+
+def model_component_versions(spec: FeatureLabelSpec) -> dict[str, str]:
+    """The component feature-spec versions a model carries.
+
+    A price-only model carries one ("price"); a price-plus-news model carries two
+    ("price" and "news"). Each gates with equal force in ``assert_live_spec``.
+    """
+    versions = {"price": spec.version}
+    if spec.news_version is not None:
+        versions["news"] = spec.news_version
+    return versions
+
+
+def assert_live_spec(model: TrainedModel) -> None:
+    """Refuse a model whose feature spec no longer matches the live code (plan §4, §3).
+
+    Checks **every** component the model carries against the live version authority,
+    never the spec the model carries. A silent feature-spec drift — including a
+    changed news decay half-life, z-score window, or event taxonomy that didn't bump
+    the news version — would feed the model inputs that mean something different from
+    what it was trained on, with full confidence. The price-only check is byte-for-
+    byte the Phase 4 behavior (a price-only model carries no news component).
+    """
+    live = live_feature_versions()
+    for name, version in model_component_versions(model.spec).items():
+        expected = live.get(name)
+        if expected is None:  # pragma: no cover - guards an unknown component
+            raise ValueError(
+                f"Model carries an unknown feature component '{name}'; "
+                "refusing to run a model the live code cannot validate."
+            )
+        if version != expected:
+            raise ValueError(
+                f"Model {name} feature-spec '{version}' does not match the live "
+                f"spec '{expected}'; refusing to run a stale model."
+            )

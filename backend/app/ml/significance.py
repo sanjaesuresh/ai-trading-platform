@@ -90,6 +90,118 @@ class PBOResult:
 
 
 @dataclass(frozen=True)
+class PairedIncrementalResult:
+    """The paired (news − price) incremental significance test (Phase 5 §6).
+
+    "Incremental" needs an incremental test, not a boolean ``>``: the news arm's
+    absolute return stream is mostly the price signal, so if price clears the bar
+    the news arm clears it too and a one-basis-point edge reads as significant. So
+    the increment is tested on its own — a paired test on the per-bar (news − price)
+    difference stream, deflated for the news search count, plus an explicit
+    ``beats_price_only`` condition. A point estimate of the difference is not
+    evidence the difference is non-zero.
+    """
+
+    mean_diff: float
+    bootstrap_p_value: float  # one-sided H0: mean(news − price) <= 0
+    deflated_sharpe: float  # DSR of the differenced stream, deflated for n_trials
+    n_obs: int
+    n_trials: int
+    beats_price_only: bool
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "mean_diff": float(self.mean_diff),
+            "bootstrap_p_value": float(self.bootstrap_p_value),
+            "deflated_sharpe": float(self.deflated_sharpe),
+            "n_obs": int(self.n_obs),
+            "n_trials": int(self.n_trials),
+            "beats_price_only": bool(self.beats_price_only),
+        }
+
+
+def _stationary_bootstrap_mean(
+    diff: np.ndarray, *, n_resamples: int, avg_block: float, seed: int
+) -> np.ndarray:
+    """Stationary-bootstrap (Politis-Romano) distribution of the mean of *diff*.
+
+    Resamples in geometric-length blocks (mean ``avg_block``) so the autocorrelation
+    in a per-bar return-difference series is preserved — an iid bootstrap would
+    understate the variance of the mean and overstate significance.
+    """
+    n = diff.size
+    rng = np.random.default_rng(seed)
+    p = 1.0 / max(1.0, avg_block)
+    means = np.empty(n_resamples, dtype="float64")
+    for r in range(n_resamples):
+        idx = np.empty(n, dtype=np.int64)
+        i = int(rng.integers(0, n))
+        for t in range(n):
+            idx[t] = i
+            i = int(rng.integers(0, n)) if rng.random() < p else (i + 1) % n
+        means[r] = float(diff[idx].mean())
+    return means
+
+
+def paired_incremental_significance(
+    diff_returns: np.ndarray,
+    *,
+    n_trials: int,
+    n_resamples: int = 2000,
+    avg_block: float = 5.0,
+    seed: int = 0,
+) -> PairedIncrementalResult:
+    """Paired test on a per-bar (news − price) return-difference stream (§6).
+
+    Combines a stationary-bootstrap one-sided p-value (H0: the mean difference is
+    ≤ 0) with a deflated Sharpe of the differenced stream, deflated for the news
+    search count ``n_trials``. ``beats_price_only`` requires both a positive mean
+    difference and a deflated Sharpe clearing ``DSR_PASS`` — the bootstrap p-value
+    is reported as a cross-check, not a second gate.
+    """
+    diff = np.asarray(diff_returns, dtype="float64")
+    n = int(diff.size)
+    if n < 2:
+        return PairedIncrementalResult(
+            mean_diff=float(diff.mean()) if n else 0.0,
+            bootstrap_p_value=float("nan"),
+            deflated_sharpe=float("nan"),
+            n_obs=n,
+            n_trials=n_trials,
+            beats_price_only=False,
+        )
+
+    mean_diff = float(diff.mean())
+    boot_means = _stationary_bootstrap_mean(
+        diff, n_resamples=n_resamples, avg_block=avg_block, seed=seed
+    )
+    # One-sided: probability the true mean difference is not above zero.
+    p_value = float(np.mean(boot_means <= 0.0))
+
+    moments = returns_moments(diff)
+    # Lo (2002) sampling-variance floor for the trial-Sharpe variance, matching the
+    # evaluation's deflated-Sharpe treatment.
+    var_trial = (1.0 + 0.5 * moments.sharpe**2) / max(1, n)
+    dsr = deflated_sharpe_ratio(
+        moments.sharpe,
+        n,
+        moments.skew,
+        moments.kurtosis,
+        n_trials=n_trials,
+        variance_of_trial_sharpes=var_trial,
+    )
+    beats = bool(mean_diff > 0.0 and not math.isnan(dsr) and dsr >= DSR_PASS)
+    return PairedIncrementalResult(
+        mean_diff=mean_diff,
+        bootstrap_p_value=p_value,
+        deflated_sharpe=dsr,
+        n_obs=n,
+        n_trials=n_trials,
+        beats_price_only=beats,
+    )
+
+
+@dataclass(frozen=True)
 class ModelVerdict:
     """Binary gate: did the model clear the full significance battery?
 
